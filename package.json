@@ -11,8 +11,7 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "convex": "^1.10.0",
-    "@convex/react": "^1.10.0"
+    "convex": "^1.10.0"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
