@@ -276,11 +276,19 @@ export class HaylouRT3Client {
 
   /**
    * Abre o seletor de dispositivos e pareia com o relógio.
-   * Filtro por nome (prefixo "Haylou…") ou pelo serviço GATT padrão de
-   * frequência cardíaca; pede acesso opcional aos serviços usados na
-   * telemetria integral.
+   *
+   * `mode`:
+   *  - "smart" (padrão): filtra por nomes conhecidos do Haylou ("Haylou…",
+   *    "LS16", "RT3") ou pelo serviço GATT padrão de frequência cardíaca.
+   *  - "any": lista QUALQUER dispositivo BLE próximo (acceptAllDevices) —
+   *    usado quando o relógio não anuncia nome/serviço reconhecível, o
+   *    usuário escolhe o relógio manualmente na lista.
+   *
+   * Cada etapa de assinatura GATT é opcional: se o relógio não expuser um
+   * serviço (ex.: HR padrão 0x180D inexistente nos Haylou proprietários),
+   * a conexão continua mesmo assim com o que ele oferece.
    */
-  async connect(): Promise<void> {
+  async connect(mode: "smart" | "any" = "smart"): Promise<void> {
     if (!isWebBluetoothSupported()) {
       throw new Error("Web Bluetooth não está disponível neste navegador");
     }
@@ -289,10 +297,17 @@ export class HaylouRT3Client {
     let device: BluetoothDevice;
     try {
       device = await navigator.bluetooth!.requestDevice({
-        filters: [
-          { namePrefix: "Haylou" },
-          { services: [HEART_RATE_SERVICE] },
-        ],
+        filters:
+          mode === "smart"
+            ? [
+                { namePrefix: "Haylou" },
+                { namePrefix: "LS16" },
+                { namePrefix: "RT3" },
+                { namePrefix: "Solar" },
+                { services: [HEART_RATE_SERVICE] },
+              ]
+            : undefined,
+        acceptAllDevices: mode === "any",
         optionalServices: [
           HEART_RATE_SERVICE,
           BATTERY_SERVICE,
@@ -300,8 +315,16 @@ export class HaylouRT3Client {
           ALERT_NOTIFICATION_SERVICE,
         ],
       });
-    } catch {
-      throw new Error("Pareamento cancelado ou nenhum relógio encontrado");
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : "";
+      if (name === "NotAllowedError") {
+        throw new Error(
+          "Permissão de Bluetooth/Localização negada. No Android, ative a Localização e o Bluetooth nas configurações e tente de novo.",
+        );
+      }
+      throw new Error(
+        "Nenhum relógio encontrado na busca. Verifique se o relógio está ligado e perto, se ele não está pareado com outro celular e tente de novo. Dica: em Configurações > Bluetooth do celular, esqueça o pareamento antigo do relógio antes de parear pelo site.",
+      );
     }
 
     this.device = device;
@@ -310,15 +333,20 @@ export class HaylouRT3Client {
     try {
       this.server = await device.gatt!.connect();
     } catch (err) {
-      this.onError?.("Falha ao estabelecer o link GATT com o relógio");
+      this.onError?.(
+        "O pareamento foi aceito, mas a conexão GATT falhou. Esqueça o relógio em Configurações > Bluetooth do celular e tente parear de novo pelo site.",
+      );
       throw err;
     }
 
-    await this.setupHeartRate();
-    await this.readBattery();
-    await this.setupAlertNotification();
-    await this.setupBloodPressure();
-    await this.subscribeRawTelemetry();
+    // etapas opcionais: nenhuma falha derruba a conexão inteira
+    await Promise.allSettled([
+      this.setupHeartRate(),
+      this.readBattery(),
+      this.setupAlertNotification(),
+      this.setupBloodPressure(),
+      this.subscribeRawTelemetry(),
+    ]);
     this.setupRssi();
   }
 

@@ -295,6 +295,18 @@ body::before {
 .watch-device .mono { font-size: 11px; color: var(--faint); }
 .watch-error { font-size: 11.5px; color: var(--amber); }
 .watch-actions { display: flex; gap: 10px; }
+.ble-hint {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--faint);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed var(--line);
+}
+.ble-hint b { color: var(--cyan); font-weight: 600; }
 
 /* ---------- hero grid ---------- */
 .dash-hero {

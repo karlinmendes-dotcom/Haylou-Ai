@@ -35,7 +35,12 @@ export interface WatchController {
   reading: VitalsReading;
   /** Histórico de BPM real para o sparkline (janela deslizante). */
   history: number[];
-  connect: () => Promise<void>;
+  /**
+   * Abre o seletor Bluetooth. `mode` "smart" filtra por nomes Haylou
+   * conhecidos; "any" lista todos os dispositivos próximos (fallback
+   * quando o relógio não aparece na busca filtrada).
+   */
+  connect: (mode?: "smart" | "any") => Promise<void>;
   disconnect: () => void;
   /** Envia notificação universal (categoria + título + texto) via BLE e registra no Convex. */
   sendNotification: (text: string, options?: SendNotificationOptions) => Promise<boolean>;
@@ -226,13 +231,13 @@ export function useBluetoothWatch(): WatchController {
     setHistory([]);
   };
 
-  const connect = useCallback(async () => {
+  const connect = useCallback(async (mode: "smart" | "any" = "smart") => {
     const client = clientRef.current;
     if (!client) return;
     if (client.isConnected) return;
     setStatus((prev) => ({ ...prev, phase: "scanning", error: null }));
     try {
-      await client.connect();
+      await client.connect(mode);
       setStatus((prev) => ({
         ...prev,
         phase: "connected",

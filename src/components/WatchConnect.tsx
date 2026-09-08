@@ -2,7 +2,7 @@ import type { WatchStatus } from "../hooks/useBluetoothWatch";
 
 interface Props {
   status: WatchStatus;
-  onConnect: () => void;
+  onConnect: (mode?: "smart" | "any") => void;
   onDisconnect: () => void;
 }
 
@@ -52,7 +52,7 @@ export function WatchConnect({ status, onConnect, onDisconnect }: Props) {
               <span className="mono">
                 {failed
                   ? "nenhum dado é enviado ao Convex até reconectar"
-                  : "pareamento via Web Bluetooth · serviço HR 0x180D"}
+                  : "pareamento via Web Bluetooth · nomes Haylou/LS16/RT3 ou serviço HR 0x180D"}
               </span>
             </span>
           </>
@@ -69,14 +69,41 @@ export function WatchConnect({ status, onConnect, onDisconnect }: Props) {
             Desconectar
           </button>
         ) : (
-          <button className="btn primary" onClick={onConnect} disabled={working}>
-            <span className="send-ico" aria-hidden="true">
-              ⌖
-            </span>
-            {working ? "Conectando…" : "Conectar Smartwatch (Haylou RT3)"}
-          </button>
+          <>
+            <button className="btn primary" onClick={() => onConnect("smart")} disabled={working}>
+              <span className="send-ico" aria-hidden="true">
+                ⌖
+              </span>
+              {working ? "Conectando…" : "Conectar Smartwatch (Haylou RT3)"}
+            </button>
+            {failed && !working && (
+              <button className="btn" onClick={() => onConnect("any")}>
+                <span className="send-ico" aria-hidden="true">
+                  ⌘
+                </span>
+                Procurar todos os dispositivos
+              </button>
+            )}
+          </>
         )}
       </div>
+
+      {!connected && !working && (
+        <p className="ble-hint">
+          {failed ? (
+            <>
+              <b>Dicas:</b> ative a <b>Localização</b> do celular (o Android exige para escanear BLE),
+              coloque o relógio <b>no modo de pareamento</b> e em <b>Configurações → Bluetooth</b>{" "}
+              esqueça qualquer pareamento antigo do relógio antes de tentar de novo.
+            </>
+          ) : (
+            <>
+              <b>Dica:</b> Android exige <b>Localização ativada</b> para escanear BLE. Se o relógio
+              não aparecer, use “Procurar todos os dispositivos” após a primeira tentativa.
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }
