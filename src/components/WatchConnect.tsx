@@ -52,7 +52,7 @@ export function WatchConnect({ status, onConnect, onDisconnect }: Props) {
               <span className="mono">
                 {failed
                   ? "nenhum dado é enviado ao Convex até reconectar"
-                  : "pareamento via Web Bluetooth · nomes Haylou/LS16/RT3 ou serviço HR 0x180D"}
+                  : "procurando \"HAYLOU Solar Plus\" (RT3/LS16) · serviço HR 0x180D + canal FFE0"}
               </span>
             </span>
           </>

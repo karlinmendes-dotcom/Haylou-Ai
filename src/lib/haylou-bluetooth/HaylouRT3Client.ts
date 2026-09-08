@@ -252,9 +252,19 @@ const BLOOD_PRESSURE_MEASUREMENT = UUID("2a35");
 const ALERT_NOTIFICATION_SERVICE = UUID("1811");
 const ANS_NEW_ALERT = UUID("2a46");
 const ANS_SUPPORTED_NEW_ALERT_CATEGORY = UUID("2a47");
+const GENERIC_ACCESS_SERVICE = UUID("1800");
+const DEVICE_INFORMATION_SERVICE = UUID("180a");
 /** Serviço UART-like comum nos relógios Haylou/GloryFit (FFE0/FFE1). */
 const HAYLOU_SERVICE = UUID("ffe0");
 const HAYLOU_WRITE_CHAR = UUID("ffe1");
+
+/**
+ * Nome exato anunciado pelo hardware (extraído do advertising do RT3/LS16):
+ * o Web Bluetooth compara nomes com CASE-SENSITIVE — por isso os filtros
+ * cobrem as variações de caixa observadas no anúncio real.
+ */
+const RT3_ADVERTISED_NAMES = ["HAYLOU Solar Plus", "Haylou Solar Plus", "HAYLOU Solar Plus RT3"];
+const RT3_NAME_PREFIXES = ["HAYLOU", "Haylou", "LS16", "RT3", "Solar", "Solar Plus"];
 
 /** limite de segurança para escrita em uma única característica */
 const MAX_PACKET_BYTES = 180;
@@ -333,10 +343,9 @@ export class HaylouRT3Client {
         filters:
           mode === "smart"
             ? [
-                { namePrefix: "Haylou" },
-                { namePrefix: "LS16" },
-                { namePrefix: "RT3" },
-                { namePrefix: "Solar" },
+                // nome exato anunciado pelo RT3 (case-sensitive) + prefixos
+                ...RT3_ADVERTISED_NAMES.map((name) => ({ name })),
+                ...RT3_NAME_PREFIXES.map((namePrefix) => ({ namePrefix })),
                 { services: [HEART_RATE_SERVICE] },
               ]
             : undefined,
@@ -346,6 +355,9 @@ export class HaylouRT3Client {
           BATTERY_SERVICE,
           BLOOD_PRESSURE_SERVICE,
           ALERT_NOTIFICATION_SERVICE,
+          HAYLOU_SERVICE, // canal proprietário Haylou/GloryFit (FFE1)
+          GENERIC_ACCESS_SERVICE, // 0x1800
+          DEVICE_INFORMATION_SERVICE, // 0x180A
         ],
       });
     } catch (err) {
