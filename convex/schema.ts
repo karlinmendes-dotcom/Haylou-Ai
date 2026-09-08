@@ -36,6 +36,8 @@ export default defineSchema({
     calories: v.optional(v.number()),
     cadence: v.optional(v.number()),
     sleepPhase: v.optional(v.string()),
+    sleepDurationMin: v.optional(v.number()),
+    posture: v.optional(v.string()),
     sportMode: v.optional(v.string()),
     systolic: v.optional(v.number()),
     diastolic: v.optional(v.number()),

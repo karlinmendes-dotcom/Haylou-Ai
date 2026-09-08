@@ -74,6 +74,7 @@ interface BluetoothRemoteGATTCharacteristic extends EventTarget {
   stopNotifications(): Promise<BluetoothRemoteGATTCharacteristic>;
   readValue(): Promise<DataView>;
   writeValue(value: ArrayBufferView | ArrayBuffer): Promise<void>;
+  writeValueWithoutResponse(value: ArrayBufferView | ArrayBuffer): Promise<void>;
 }
 
 interface BluetoothRequestDeviceFilter {

@@ -12,6 +12,8 @@ import { v } from "convex/values";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
+const GROQ_TRANSCRIBE_MODEL = "whisper-large-v3";
 
 export const analyzeVitals = action({
   args: {
@@ -71,6 +73,55 @@ export const analyzeVitals = action({
         return { ok: false, reason: "empty" };
       }
       return { ok: true, text: text.trim() };
+    } catch {
+      return { ok: false, reason: "network" };
+    }
+  },
+});
+
+/**
+ * Transcrição de voz (Web -> Relógio / respostas do assistente).
+ *
+ * Recebe um áudio gravado no navegador (microfone do celular), envia para o
+ * Whisper da Groq Cloud e devolve o texto transcrito em português. Usa a
+ * MESMA chave GROQ_API_KEY já configurada no deploy — nenhuma chave extra
+ * é necessária.
+ */
+export const transcribeAudio = action({
+  args: {
+    audioB64: v.string(),
+    mimeType: v.string(),
+  },
+  handler: async (_ctx, args) => {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+      return { ok: false, reason: "no_key" };
+    }
+
+    try {
+      const bytes = Uint8Array.from(atob(args.audioB64), (c) => c.charCodeAt(0));
+      const file = new File([bytes], "voice.webm", { type: args.mimeType || "audio/webm" });
+      const form = new FormData();
+      form.append("file", file);
+      form.append("model", GROQ_TRANSCRIBE_MODEL);
+      form.append("language", "pt");
+      form.append("response_format", "json");
+
+      const res = await fetch(GROQ_TRANSCRIBE_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: form,
+      });
+
+      if (!res.ok) {
+        return { ok: false, reason: "http_error", status: res.status };
+      }
+      const data: { text?: string } = await res.json();
+      const text = data.text?.trim();
+      if (!text) {
+        return { ok: false, reason: "empty" };
+      }
+      return { ok: true, text };
     } catch {
       return { ok: false, reason: "network" };
     }

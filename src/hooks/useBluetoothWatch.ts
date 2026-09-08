@@ -35,6 +35,8 @@ export interface WatchController {
   reading: VitalsReading;
   /** Histórico de BPM real para o sparkline (janela deslizante). */
   history: number[];
+  /** Últimos eventos de hardware decodificados (botão/coroa) — vazio enquanto não houver. */
+  hardwareEvents: Array<{ label: string; ts: number }>;
   /**
    * Abre o seletor Bluetooth. `mode` "smart" filtra por nomes Haylou
    * conhecidos; "any" lista todos os dispositivos próximos (fallback
@@ -80,6 +82,9 @@ export function useBluetoothWatch(): WatchController {
   }));
   const [reading, setReading] = useState<VitalsReading>(EMPTY_READING);
   const [history, setHistory] = useState<number[]>([]);
+  const [hardwareEvents, setHardwareEvents] = useState<
+    Array<{ label: string; ts: number }>
+  >([]);
 
   // handlers atuais — as callbacks do cliente BLE sempre despacham pelo ref,
   // evitando closures velhas e duplicação de cliente em re-renders.
@@ -88,6 +93,7 @@ export function useBluetoothWatch(): WatchController {
     onTelemetry: (_t: RT3Telemetry) => {},
     onBattery: (_level: number) => {},
     onRssi: (_rssi: number) => {},
+    onHardwareEvent: (_label: string) => {},
     onDisconnected: () => {},
   });
 
@@ -99,6 +105,10 @@ export function useBluetoothWatch(): WatchController {
       onTelemetry: (t) => handlersRef.current.onTelemetry(t),
       onBattery: (l) => handlersRef.current.onBattery(l),
       onRssi: (r) => handlersRef.current.onRssi(r),
+      onHardwareEvent: (hw) =>
+        handlersRef.current.onHardwareEvent(
+          `${hw.kind} · ${hw.action}${hw.delta != null ? ` ${hw.delta}` : ""}`,
+        ),
       onDisconnected: () => handlersRef.current.onDisconnected(),
       onError: (m) => setStatus((prev) => ({ ...prev, error: m })),
     });
@@ -115,6 +125,8 @@ export function useBluetoothWatch(): WatchController {
       calories?: number;
       cadence?: number;
       sleepPhase?: string;
+      sleepDurationMin?: number;
+      posture?: string;
       sportMode?: string;
       systolic?: number;
       diastolic?: number;
@@ -135,6 +147,8 @@ export function useBluetoothWatch(): WatchController {
         calories: fields.calories,
         cadence: fields.cadence,
         sleepPhase: fields.sleepPhase,
+        sleepDurationMin: fields.sleepDurationMin,
+        posture: fields.posture,
         sportMode: fields.sportMode,
         systolic: fields.systolic,
         diastolic: fields.diastolic,
@@ -199,6 +213,8 @@ export function useBluetoothWatch(): WatchController {
       calories: t.calories,
       cadence: t.cadence,
       sleepPhase: t.sleepPhase,
+      sleepDurationMin: t.sleepDurationMin,
+      posture: t.posture,
       sportMode: t.sportMode,
       systolic: t.bloodPressure?.systolic,
       diastolic: t.bloodPressure?.diastolic,
@@ -215,6 +231,10 @@ export function useBluetoothWatch(): WatchController {
 
   handlersRef.current.onRssi = (rssi: number) => {
     setStatus((prev) => ({ ...prev, rssi }));
+  };
+
+  handlersRef.current.onHardwareEvent = (label: string) => {
+    setHardwareEvents((prev) => [...prev.slice(-9), { label, ts: Date.now() }]);
   };
 
   handlersRef.current.onDisconnected = () => {
@@ -304,5 +324,5 @@ export function useBluetoothWatch(): WatchController {
     return () => clientRef.current?.disconnect();
   }, []);
 
-  return { status, reading, history, connect, disconnect, sendNotification };
+  return { status, reading, history, hardwareEvents, connect, disconnect, sendNotification };
 }

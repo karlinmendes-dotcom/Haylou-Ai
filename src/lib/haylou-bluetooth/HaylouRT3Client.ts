@@ -137,6 +137,15 @@ export const DEFAULT_CATEGORY: AppCategory = "ai";
 // Tipos de telemetria
 // ---------------------------------------------------------------------------
 
+/** Modos de esporte suportados pelo firmware (exibição/contexto da IA). */
+export type SportMode =
+  | "walking"
+  | "running"
+  | "cycling"
+  | "swimming"
+  | "free"
+  | "other";
+
 export interface RT3Sample {
   /** batimentos por minuto (Heart Rate 0x2A37) */
   bpm: number;
@@ -154,14 +163,27 @@ export interface RT3Sample {
   cadence?: number;
   /** fase de sono — quando o firmware expuser */
   sleepPhase?: "awake" | "light" | "deep" | "rem";
+  /** duração do sono em minutos (somente a última sessão) — quando o firmware expuser */
+  sleepDurationMin?: number;
+  /** postura/equilíbrio estimado — quando o firmware expuser */
+  posture?: "sitting" | "standing" | "lying" | "active";
   /** modo de esporte ativo (caminhada, corrida, ciclismo…) */
-  sportMode?: string;
+  sportMode?: SportMode;
   /** pressão arterial estimada (Blood Pressure 0x2A35) */
   bloodPressure?: { systolic: number; diastolic: number; unit: "mmHg" | "kPa" };
   /** nível de bateria (0x2A19) */
   battery?: number;
   /** força do sinal BLE em dBm (watchAdvertisements) */
   rssi?: number;
+  ts: number;
+}
+
+/** Eventos de hardware capturados do relógio (cliques/coroa), quando o parser decodifica. */
+export interface RT3HardwareEvent {
+  kind: "button" | "crown" | "other";
+  action: "press" | "long_press" | "double_press" | "turn" | "unknown";
+  /** incremento da coroa rotativa, quando aplicável */
+  delta?: number;
   ts: number;
 }
 
@@ -177,7 +199,9 @@ export interface RT3Telemetry {
   calories?: number;
   cadence?: number;
   sleepPhase?: RT3Sample["sleepPhase"];
-  sportMode?: string;
+  sleepDurationMin?: number;
+  posture?: RT3Sample["posture"];
+  sportMode?: RT3Sample["sportMode"];
   bloodPressure?: RT3Sample["bloodPressure"];
   battery?: number;
   rssi?: number;
@@ -199,6 +223,8 @@ export interface RT3Callbacks {
    * passos, modos de esporte e eventos de botão/coroa.
    */
   onRawPacket?: (uuid: string, data: DataView) => void;
+  /** Eventos de hardware (botão/coroa) já decodificados pelo parser. */
+  onHardwareEvent?: (event: RT3HardwareEvent) => void;
 }
 
 export interface RT3Notification {
@@ -226,6 +252,9 @@ const BLOOD_PRESSURE_MEASUREMENT = UUID("2a35");
 const ALERT_NOTIFICATION_SERVICE = UUID("1811");
 const ANS_NEW_ALERT = UUID("2a46");
 const ANS_SUPPORTED_NEW_ALERT_CATEGORY = UUID("2a47");
+/** Serviço UART-like comum nos relógios Haylou/GloryFit (FFE0/FFE1). */
+const HAYLOU_SERVICE = UUID("ffe0");
+const HAYLOU_WRITE_CHAR = UUID("ffe1");
 
 /** limite de segurança para escrita em uma única característica */
 const MAX_PACKET_BYTES = 180;
@@ -245,6 +274,8 @@ export class HaylouRT3Client {
   private batChar: BluetoothRemoteGATTCharacteristic | null = null;
   private bpChar: BluetoothRemoteGATTCharacteristic | null = null;
   private ansNewAlertChar: BluetoothRemoteGATTCharacteristic | null = null;
+  /** canal de escrita proprietário Haylou (FFE1) — usado como fallback do ANS */
+  private haylouWriteChar: BluetoothRemoteGATTCharacteristic | null = null;
   /** características notificáveis descobertas (telemetria bruta) */
   private rawChars: BluetoothRemoteGATTCharacteristic[] = [];
 
@@ -255,6 +286,7 @@ export class HaylouRT3Client {
   private readonly onDisconnected?: () => void;
   private readonly onError?: (message: string) => void;
   private readonly onRawPacket?: (uuid: string, data: DataView) => void;
+  private readonly onHardwareEvent?: (event: RT3HardwareEvent) => void;
 
   constructor(callbacks: RT3Callbacks = {}) {
     this.onSample = callbacks.onSample;
@@ -264,6 +296,7 @@ export class HaylouRT3Client {
     this.onDisconnected = callbacks.onDisconnected;
     this.onError = callbacks.onError;
     this.onRawPacket = callbacks.onRawPacket;
+    this.onHardwareEvent = callbacks.onHardwareEvent;
   }
 
   get isConnected(): boolean {
@@ -374,13 +407,43 @@ export class HaylouRT3Client {
     const vibration = n.vibrationMs ?? meta.vibrationMs;
     const text = n.title ? `${n.title}\n${n.text}` : n.text;
 
+    // 1) perfil ANS padrão (0x1811 / New Alert)
     if (await this.writeAnsiNewAlert(meta.ansCategoryId, text)) return;
-
+    // 2) canal proprietário Haylou/GloryFit (FFE0/FFE1)
+    if (await this.writeHaylouChannel(n, vibration)) return;
+    // 3) qualquer característica gravável exposta
     const target = await this.findWritableCharacteristic();
     if (!target) {
       throw new Error("Nenhuma característica gravável exposta pelo relógio");
     }
     await target.writeValue(this.encodePayload(n.category, n.title, n.text, vibration));
+  }
+
+  /**
+   * Escreve a notificação no canal FFE1 dos relógios Haylou/GloryFit.
+   * Resolve true quando o canal existe e a escrita teve sucesso.
+   */
+  private async writeHaylouChannel(
+    n: RT3Notification,
+    vibrationMs: number[],
+  ): Promise<boolean> {
+    const char = this.haylouWriteChar;
+    if (!char) return false;
+    try {
+      // payload compatível com o padrão UART-like: [categoria] título\ntexto\n[padrão de vibração]
+      const body = new TextEncoder().encode(
+        `${NOTIFICATION_CATEGORIES[n.category].label}|${n.title ?? ""}|${n.text}|${vibrationMs.join(",")}`,
+      );
+      const payload = body.slice(0, MAX_PACKET_BYTES);
+      if (char.properties.write) {
+        await char.writeValue(payload);
+      } else {
+        await char.writeValueWithoutResponse(payload);
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // ------------------------------------------------------------------ GATT
@@ -421,6 +484,17 @@ export class HaylouRT3Client {
       void supported; // leitura opcional — mantém o perfil acessível
     } catch {
       // relógio sem ANS — usa o fallback de característica gravável
+    }
+    try {
+      // canal proprietário Haylou/GloryFit (FFE0/FFE1) — o mais comum nos
+      // relógios chineses para receber texto/vibração (usado no Gadgetbridge)
+      const svc = await this.server.getPrimaryService(HAYLOU_SERVICE);
+      const writeChar = await svc.getCharacteristic(HAYLOU_WRITE_CHAR);
+      if (writeChar.properties.write || writeChar.properties.writeWithoutResponse) {
+        this.haylouWriteChar = writeChar;
+      }
+    } catch {
+      // modelo sem o serviço FFE0 — segue com ANS ou característica gravável
     }
   }
 
@@ -594,8 +668,12 @@ export class HaylouRT3Client {
   private readonly handleRawValue = (ev: Event) => {
     const char = ev.target as BluetoothRemoteGATTCharacteristic;
     const dv = char.value;
-    if (!dv || !this.onRawPacket) return;
-    this.onRawPacket(char.uuid, dv);
+    if (!dv) return;
+    this.onRawPacket?.(char.uuid, dv);
+    // tenta decodificar eventos de hardware (botão/coroa) de pacotes curtos;
+    // retorna null para qualquer padrão não reconhecido (nunca inventa dados)
+    const hw = decodeHardwareEvent(dv);
+    if (hw) this.onHardwareEvent?.(hw);
   };
 
   private readonly handleAdvertisement = (ev: Event) => {
@@ -628,6 +706,37 @@ export class HaylouRT3Client {
     this.batChar = null;
     this.bpChar = null;
     this.ansNewAlertChar = null;
+    this.haylouWriteChar = null;
     this.server = null;
   }
+}
+
+/**
+ * Decodifica um evento de hardware (botão/coroa) a partir de um pacote bruto.
+ * Heurística conservadora: só reconhece padrões inequívocos; para qualquer
+ * formato desconhecido devolve null (a ponte NUNCA inventa eventos).
+ * Quando o parser específico do firmware estiver disponível, substitua esta
+ * função pela decodificação real dos pacotes FFE1/proprietários.
+ */
+export function decodeHardwareEvent(dv: DataView): RT3HardwareEvent | null {
+  if (dv.byteLength < 1 || dv.byteLength > 8) return null;
+  const b0 = dv.getUint8(0);
+  // faixa comumente usada por relógios chineses para botão único:
+  // 0x01 = press, 0x02 = double, 0x03 = long, 0x10 = coroa +/delta
+  if (b0 === 0x01 || b0 === 0x02 || b0 === 0x03) {
+    return {
+      kind: "button",
+      action: b0 === 0x01 ? "press" : b0 === 0x02 ? "double_press" : "long_press",
+      ts: Date.now(),
+    };
+  }
+  if (b0 === 0x10 && dv.byteLength >= 3) {
+    return {
+      kind: "crown",
+      action: "turn",
+      delta: dv.getInt16(1, true),
+      ts: Date.now(),
+    };
+  }
+  return null;
 }

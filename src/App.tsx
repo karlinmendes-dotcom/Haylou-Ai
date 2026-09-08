@@ -5,6 +5,7 @@ import { WatchConnect } from "./components/WatchConnect";
 import { HeartPanel } from "./components/HeartPanel";
 import { MetricCards } from "./components/MetricCards";
 import { AiTerminal } from "./components/AiTerminal";
+import { VoiceComposer } from "./components/VoiceComposer";
 import { DbPanels } from "./components/DbPanels";
 import { SyncFooter } from "./components/SyncFooter";
 import "./index.css";
@@ -42,6 +43,8 @@ export default function App() {
           <HeartPanel reading={reading} history={history} />
           <AiTerminal latest={reading} onSendToWatch={watch.sendNotification} />
         </section>
+
+        <VoiceComposer onSendToWatch={watch.sendNotification} />
 
         <MetricCards reading={reading} />
 
