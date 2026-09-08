@@ -115,7 +115,7 @@ function DeviceList() {
 }
 
 function SessionList() {
-  const sessions = useQuery(api.sessions.listSessions);
+  const sessions = useQuery(api.devices.listSessions);
   if (sessions === undefined) {
     return (
       <>
@@ -159,7 +159,7 @@ function SessionList() {
 }
 
 function SettingList() {
-  const settings = useQuery(api.settings.listSettings);
+  const settings = useQuery(api.devices.listSettings);
   if (settings === undefined) {
     return (
       <>
@@ -274,8 +274,8 @@ function NotificationList() {
 
 function DbContent() {
   const devices = useQuery(api.devices.listDevices);
-  const sessions = useQuery(api.sessions.listSessions);
-  const settings = useQuery(api.settings.listSettings);
+  const sessions = useQuery(api.devices.listSessions);
+  const settings = useQuery(api.devices.listSettings);
   const biometrics = useQuery(api.biometrics.listRecent, { limit: 5 });
   const notifications = useQuery(api.notifications.listRecent, { limit: 5 });
   const loading =
