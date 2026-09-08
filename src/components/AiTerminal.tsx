@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useConvex } from "convex/react";
 import type { VitalsReading } from "../hooks/useVitals";
 
 interface Props {
@@ -47,6 +48,7 @@ export function AiTerminal({ latest }: Props) {
   const prevStressHighRef = useRef(latest.stress >= 70);
   const timersRef = useRef<number[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const aliveRef = useRef(true);
 
   const pushLine = useCallback((text: string, tone: Tone) => {
     idRef.current += 1;
@@ -122,6 +124,37 @@ export function AiTerminal({ latest }: Props) {
     return out;
   }, []);
 
+  const convexClient = useConvex() as unknown as {
+    action: (name: string, args: unknown) => Promise<unknown>;
+  };
+
+  // consulta o modelo real no backend (Groq via action do Convex);
+  // devolve null quando a action ainda nao esta no deploy / sem chave
+  const consultGroq = useCallback(async (): Promise<string | null> => {
+    const r = latestRef.current;
+    if (r.ts === 0) return null;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        const id = window.setTimeout(() => reject(new Error("groq timeout")), 15000);
+        timersRef.current.push(id);
+      });
+      const res = (await Promise.race([
+        convexClient.action("ai:analyzeVitals", {
+          bpm: r.bpm,
+          spo2: r.spo2,
+          stress: r.stress,
+          steps: r.steps,
+          calories: r.calories,
+          anomaly: r.anomaly,
+        }),
+        timeout,
+      ])) as { ok?: boolean; text?: string };
+      return res && res.ok === true && typeof res.text === "string" ? res.text : null;
+    } catch {
+      return null;
+    }
+  }, [convexClient]);
+
   const runAnalysis = useCallback(() => {
     if (phaseRef.current !== "idle") return;
     setPhaseSafe("analyze");
@@ -156,7 +189,12 @@ export function AiTerminal({ latest }: Props) {
         `Pico de frequência detectado: BPM ${r.bpm} — cruzando com o acelerômetro e gerando alerta de acompanhamento.`,
         "alert",
       );
-      later(() => setPhaseSafe("idle"), 1600);
+      later(async () => {
+        const groq = await consultGroq();
+        if (!aliveRef.current) return;
+        if (groq) pushLine(groq, "ai");
+        setPhaseSafe("idle");
+      }, 600);
     } else if (anomalyFalling) {
       pushLine(
         `Frequência normalizou para ${r.bpm} bpm. Evento registrado no histórico de sessão.`,
@@ -168,7 +206,7 @@ export function AiTerminal({ latest }: Props) {
     } else if (stressFalling) {
       pushLine(`Estresse voltou a ${r.stress}/100 (${stressLabel(r.stress)}).`, "ok");
     }
-  }, [latest, later, pushLine, setPhaseSafe]);
+  }, [latest, later, pushLine, setPhaseSafe, consultGroq]);
 
   // rolagem automática
   useEffect(() => {
@@ -178,8 +216,12 @@ export function AiTerminal({ latest }: Props) {
 
   // limpeza
   useEffect(() => {
+    aliveRef.current = true;
     const timers = timersRef.current;
-    return () => timers.forEach((t) => window.clearTimeout(t));
+    return () => {
+      aliveRef.current = false;
+      timers.forEach((t) => window.clearTimeout(t));
+    };
   }, []);
 
   const sendTest = () => {
@@ -193,6 +235,24 @@ export function AiTerminal({ latest }: Props) {
       );
       setPhaseSafe("idle");
     }, 1100);
+  };
+
+  const askGroq = async () => {
+    if (phaseRef.current !== "idle") return;
+    setPhaseSafe("analyze");
+    const groq = await consultGroq();
+    if (!aliveRef.current) return;
+    if (groq) {
+      pushLine(groq, "ai");
+      pushLine("resposta gerada pelo modelo Groq · llama-3.3-70b-versatile", "sys");
+    } else {
+      pushLine(
+        "IA remota (Groq) indisponível no momento — deploy do backend e chave GROQ_API_KEY pendentes. Análise local:",
+        "warn",
+      );
+      for (const p of produceLines()) pushLine(p.text, p.tone);
+    }
+    setPhaseSafe("idle");
   };
 
   const chip =
@@ -250,6 +310,12 @@ export function AiTerminal({ latest }: Props) {
       </div>
 
       <div className="ai-foot">
+        <button className="btn" onClick={() => void askGroq()} disabled={phase !== "idle"}>
+          <span className="send-ico" aria-hidden="true">
+            ✦
+          </span>
+          {phase === "analyze" ? "Consultando IA…" : "Consultar IA (Groq)"}
+        </button>
         <button className="btn primary" onClick={sendTest} disabled={phase !== "idle"}>
           <span className="send-ico" aria-hidden="true">
             ⚡
