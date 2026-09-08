@@ -14,15 +14,15 @@ function stressZone(s: number): { label: string; cls: string } {
   return { label: "alto", cls: "red" };
 }
 
-function Spo2Card({ spo2 }: { spo2: number }) {
-  const pct = Math.min(spo2, 100) / 100;
+function Spo2Card({ spo2 }: { spo2: number | null }) {
+  const pct = spo2 != null ? Math.min(spo2, 100) / 100 : 0;
   const offset = RING_C * (1 - pct);
-  const ok = spo2 >= 95;
+  const ok = spo2 != null && spo2 >= 95;
   return (
     <article className="panel m-card" aria-label="oxigenação do sangue">
       <div className="m-head">
         <span className="m-label">Oxigenação</span>
-        <span className={`led ${ok ? "cyan" : "red"} ${ok ? "" : "led-pulse"}`} />
+        <span className={`led ${spo2 == null ? "off" : ok ? "cyan" : "red led-pulse"}`} />
       </div>
       <div className={`ring-wrap ${ok ? "cyan" : "red"}`}>
         <svg width="92" height="92" viewBox="0 0 96 96">
@@ -40,87 +40,119 @@ function Spo2Card({ spo2 }: { spo2: number }) {
         </svg>
         <div className="ring-center">
           <div>
-            <b>{spo2.toFixed(1)}</b>
+            <b>{spo2 != null ? spo2.toFixed(1) : "--"}</b>
             <span>spo2 %</span>
           </div>
         </div>
       </div>
-      <div className={`m-sub ${ok ? "t-mut" : "t-red"}`}>
-        {ok ? "normal · alvo ≥ 95%" : "abaixo do alvo · atenção"}
+      <div className={`m-sub ${spo2 == null ? "t-dim" : ok ? "t-mut" : "t-red"}`}>
+        {spo2 == null ? "aguardando medição do relógio" : ok ? "normal · alvo ≥ 95%" : "abaixo do alvo · atenção"}
       </div>
     </article>
   );
 }
 
-function StressCard({ stress }: { stress: number }) {
-  const zone = stressZone(stress);
-  const segs = Math.max(1, Math.round(stress / 10));
+function StressCard({ stress }: { stress: number | null }) {
+  const zone = stress != null ? stressZone(stress) : null;
+  const segs = stress != null ? Math.max(1, Math.round(stress / 10)) : 0;
   return (
     <article className="panel m-card" aria-label="nível de estresse">
       <div className="m-head">
         <span className="m-label">Estresse</span>
-        <span className={`led ${zone.cls}`} />
+        <span className={`led ${zone ? zone.cls : "off"}`} />
       </div>
       <div className="m-main">
-        <span className={`m-value v-${zone.cls === "green" ? "green" : zone.cls === "amber" ? "amber" : "red"}`}>
-          {stress}
-          <small>/100</small>
+        <span
+          className={`m-value ${
+            zone
+              ? `v-${zone.cls === "green" ? "green" : zone.cls === "amber" ? "amber" : "red"}`
+              : ""
+          }`}
+        >
+          {stress ?? "--"}
+          {stress != null && <small>/100</small>}
         </span>
       </div>
-      <div className={`seg-row ${zone.cls}`} role="meter" aria-valuenow={stress} aria-valuemin={0} aria-valuemax={100} aria-label="nível de estresse">
+      <div
+        className={`seg-row ${zone?.cls ?? ""}`}
+        role="meter"
+        aria-valuenow={stress ?? 0}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="nível de estresse"
+      >
         {Array.from({ length: 10 }).map((_, i) => (
           <span key={i} className={`seg ${i < segs ? "on" : ""}`} />
         ))}
       </div>
       <div className="m-sub">
-        <span className="t-dim">nível </span>
-        <span className={`t-${zone.cls === "green" ? "green" : zone.cls === "amber" ? "amber" : "red"}`}>
-          {zone.label}
-        </span>
-        <span className="t-dim"> · baseado no ritmo cardíaco</span>
+        {zone ? (
+          <>
+            <span className="t-dim">nível </span>
+            <span className={`t-${zone.cls === "green" ? "green" : zone.cls === "amber" ? "amber" : "red"}`}>
+              {zone.label}
+            </span>
+            <span className="t-dim"> · baseado no ritmo cardíaco</span>
+          </>
+        ) : (
+          <span className="t-dim">aguardando medição do relógio</span>
+        )}
       </div>
     </article>
   );
 }
 
-function StepsCard({ steps }: { steps: number }) {
-  const pct = Math.min(100, (steps / GOAL_STEPS) * 100);
+function StepsCard({ steps }: { steps: number | null }) {
+  const pct = steps != null ? Math.min(100, (steps / GOAL_STEPS) * 100) : 0;
   return (
     <article className="panel m-card" aria-label="passos">
       <div className="m-head">
         <span className="m-label">Passos</span>
-        <span className="led green" />
+        <span className="led off" />
       </div>
       <div className="m-main">
-        <span className="m-value v-green">{steps.toLocaleString("pt-BR")}</span>
+        <span className="m-value v-green">{steps != null ? steps.toLocaleString("pt-BR") : "--"}</span>
       </div>
-      <div className="bar" role="meter" aria-valuenow={steps} aria-valuemin={0} aria-valuemax={GOAL_STEPS} aria-label="progresso da meta de passos">
+      <div
+        className="bar"
+        role="meter"
+        aria-valuenow={steps ?? 0}
+        aria-valuemin={0}
+        aria-valuemax={GOAL_STEPS}
+        aria-label="progresso da meta de passos"
+      >
         <i style={{ width: `${pct}%` }} />
       </div>
       <div className="m-sub">
-        <span className="t-dim">meta </span>
-        <span className="t-green">{GOAL_STEPS.toLocaleString("pt-BR")}</span>
-        <span className="t-dim"> · {pct.toFixed(1)}% concluído</span>
+        {steps != null ? (
+          <>
+            <span className="t-dim">meta </span>
+            <span className="t-green">{GOAL_STEPS.toLocaleString("pt-BR")}</span>
+            <span className="t-dim"> · {pct.toFixed(1)}% concluído</span>
+          </>
+        ) : (
+          <span className="t-dim">aguardando leitura do pedômetro</span>
+        )}
       </div>
     </article>
   );
 }
 
-function CaloriesCard({ calories }: { calories: number }) {
-  const pct = Math.min(100, (calories / GOAL_KCAL) * 100);
+function CaloriesCard({ calories }: { calories: number | null }) {
+  const pct = calories != null ? Math.min(100, (calories / GOAL_KCAL) * 100) : 0;
   return (
     <article className="panel m-card" aria-label="calorias">
       <div className="m-head">
         <span className="m-label">Calorias</span>
-        <span className="led violet" />
+        <span className="led violet off" />
       </div>
       <div className="m-main">
         <span className="m-value">
-          {calories.toLocaleString("pt-BR")}
-          <small>kcal</small>
+          {calories != null ? calories.toLocaleString("pt-BR") : "--"}
+          {calories != null && <small>kcal</small>}
         </span>
       </div>
-      <div className="bar" role="meter" aria-valuenow={calories} aria-valuemin={0} aria-valuemax={GOAL_KCAL} aria-label="progresso de calorias">
+      <div className="bar" role="meter" aria-valuenow={calories ?? 0} aria-valuemin={0} aria-valuemax={GOAL_KCAL} aria-label="progresso de calorias">
         <i
           style={{
             width: `${pct}%`,
@@ -130,8 +162,14 @@ function CaloriesCard({ calories }: { calories: number }) {
         />
       </div>
       <div className="m-sub">
-        <span className="t-dim">gasto estimado do dia · </span>
-        <span className="t-violet">{calories - 1240} kcal ativas</span>
+        {calories != null ? (
+          <>
+            <span className="t-dim">gasto estimado do dia · </span>
+            <span className="t-violet">{calories.toLocaleString("pt-BR")} kcal</span>
+          </>
+        ) : (
+          <span className="t-dim">aguardando leitura do relógio</span>
+        )}
       </div>
     </article>
   );

@@ -26,6 +26,25 @@ interface SettingDoc {
   value: string;
 }
 
+interface BiometricDoc {
+  _id: string;
+  deviceId: string;
+  bpm: number;
+  spo2?: number;
+  stress?: number;
+  battery?: number;
+  timestamp: number;
+}
+
+interface NotificationDoc {
+  _id: string;
+  deviceId?: string;
+  message: string;
+  sentAt: number;
+  status: "sent" | "failed" | "pending";
+  vibrationPattern?: string;
+}
+
 const fmtClock = (ts: number) =>
   new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
@@ -164,11 +183,107 @@ function SettingList() {
   );
 }
 
+function BiometricList() {
+  const rows = useQuery(api.biometrics.listRecent, { limit: 5 });
+  if (rows === undefined) {
+    return (
+      <>
+        <div className="sk" style={{ width: "78%" }} />
+        <div className="sk" style={{ width: "58%" }} />
+      </>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="empty-note">
+        nenhuma medição ainda — conecte o relógio via BLE para gravar biometria no banco
+      </div>
+    );
+  }
+  return (
+    <>
+      {rows.map((b: BiometricDoc) => {
+        const batTone = b.battery == null ? "" : b.battery > 40 ? "green" : "amber";
+        return (
+          <div className="db-row" key={b._id}>
+            <span className="led green" />
+            <span className="db-name">
+              <b className="mono t-cyan">{b.bpm} bpm</b>
+              <span>
+                {new Date(b.timestamp).toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}{" "}
+                · {b.deviceId}
+              </span>
+            </span>
+            <span className="db-side">
+              {b.spo2 != null && <span className="model-tag">SpO2 {b.spo2.toFixed(1)}%</span>}
+              {b.stress != null && <span className="model-tag">stress {b.stress}</span>}
+              {b.battery != null && (
+                <span className={`bat-label t-${batTone}`}>{b.battery}%</span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function NotificationList() {
+  const rows = useQuery(api.notifications.listRecent, { limit: 5 });
+  if (rows === undefined) {
+    return (
+      <>
+        <div className="sk" style={{ width: "82%" }} />
+        <div className="sk" style={{ width: "66%" }} />
+      </>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="empty-note">nenhum alerta da IA enviado ainda — use o botão de teste do terminal</div>
+    );
+  }
+  return (
+    <>
+      {rows.map((n: NotificationDoc) => (
+        <div className="db-row" key={n._id}>
+          <span className={`led ${n.status === "sent" ? "violet" : "red off"}`} />
+          <span className="db-name">
+            <b className="notif-msg">“{n.message}”</b>
+            <span>
+              {new Date(n.sentAt).toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+              {n.vibrationPattern ? ` · vib ${n.vibrationPattern}` : ""}
+            </span>
+          </span>
+          <span className="db-side">
+            <span className={`pill ${n.status === "sent" ? "green" : "red"}`}>{n.status}</span>
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 function DbContent() {
   const devices = useQuery(api.devices.listDevices);
   const sessions = useQuery(api.sessions.listSessions);
   const settings = useQuery(api.settings.listSettings);
-  const loading = devices === undefined || sessions === undefined || settings === undefined;
+  const biometrics = useQuery(api.biometrics.listRecent, { limit: 5 });
+  const notifications = useQuery(api.notifications.listRecent, { limit: 5 });
+  const loading =
+    devices === undefined ||
+    sessions === undefined ||
+    settings === undefined ||
+    biometrics === undefined ||
+    notifications === undefined;
 
   return (
     <section className="db-section">
@@ -224,6 +339,26 @@ function DbContent() {
             )}
           </div>
           <SettingList />
+        </div>
+
+        <div className="panel">
+          <div className="m-head">
+            <span className="m-label">Biometria · últimas 5</span>
+            {biometrics !== undefined && (
+              <span className="count-chip green">{biometrics.length}</span>
+            )}
+          </div>
+          <BiometricList />
+        </div>
+
+        <div className="panel">
+          <div className="m-head">
+            <span className="m-label">Notificações IA</span>
+            {notifications !== undefined && (
+              <span className="count-chip violet">{notifications.length}</span>
+            )}
+          </div>
+          <NotificationList />
         </div>
       </div>
     </section>

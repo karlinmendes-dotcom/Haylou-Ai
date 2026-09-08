@@ -36,7 +36,7 @@ const fallback = (
   <>
     <span className="sync-item">
       <span className="led red off" />
-      <span className="t-red">Convex offline — painel em modo demonstração</span>
+      <span className="t-red">Convex offline — painel sem sincronização</span>
     </span>
     <span className="t-dim">verifique a URL e o deploy (moonlit-walrus-691)</span>
   </>

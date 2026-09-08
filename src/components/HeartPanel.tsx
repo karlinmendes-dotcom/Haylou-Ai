@@ -41,12 +41,18 @@ export function HeartPanel({ reading, history }: Props) {
   const { line, area } = useMemo(() => buildPoints(history), [history]);
 
   const stats = useMemo(() => {
-    if (history.length === 0) return { min: 0, avg: 0, max: 0 };
+    if (history.length === 0) return { min: null, avg: null, max: null };
     const min = Math.min(...history);
     const max = Math.max(...history);
     const avg = history.reduce((a, b) => a + b, 0) / history.length;
     return { min, avg: Math.round(avg), max };
   }, [history]);
+
+  const noData = reading.bpm == null;
+  const sampleTime =
+    reading.ts === 0
+      ? "--:--:--"
+      : new Date(reading.ts).toLocaleTimeString("pt-BR", { hour12: false });
 
   return (
     <section
@@ -56,8 +62,10 @@ export function HeartPanel({ reading, history }: Props) {
       <div className="panel-head">
         <div>
           <span className="kicker">
-            <span className={`led ${reading.anomaly ? "red led-pulse" : "cyan"}`} />
-            telemetria ao vivo
+            <span
+              className={`led ${noData ? "red off" : reading.anomaly ? "red led-pulse" : "cyan"}`}
+            />
+            {noData ? "relógio desconectado" : "telemetria ao vivo"}
           </span>
           <h2 className="panel-title">
             Batimentos <span className="accent">cardíacos</span>
@@ -68,6 +76,11 @@ export function HeartPanel({ reading, history }: Props) {
             <span className="pill red">
               <span className="led red led-pulse" />
               pico detectado
+            </span>
+          ) : noData ? (
+            <span className="pill red">
+              <span className="led red off" />
+              sem telemetria
             </span>
           ) : (
             <span className="pill green">
@@ -80,10 +93,12 @@ export function HeartPanel({ reading, history }: Props) {
 
       <div className="hr-hero">
         <div className="hr-value">
-          <span className="num">{reading.bpm}</span>
+          <span className="num">{reading.bpm ?? "--"}</span>
           <span className="unit">bpm</span>
         </div>
-        <div className="hr-label">batimentos por minuto · fonte LS16</div>
+        <div className="hr-label">
+          {noData ? "aguardando conexão do relógio · fonte LS16" : "batimentos por minuto · fonte LS16"}
+        </div>
         <div className="hr-beat" aria-hidden="true">
           {Array.from({ length: 7 }).map((_, i) => (
             <i key={i} style={{ animationDelay: `${i * 0.13}s` }} />
@@ -103,16 +118,20 @@ export function HeartPanel({ reading, history }: Props) {
               <stop offset="100%" stopColor="#00ff87" />
             </linearGradient>
           </defs>
-          <path d={area} fill="url(#areaGrad)" />
-          <path
-            d={line}
-            fill="none"
-            stroke={reading.anomaly ? "#ff2d6f" : "url(#lineGrad)"}
-            strokeWidth="2.6"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            style={{ filter: `drop-shadow(0 0 6px ${reading.anomaly ? "rgba(255,45,111,.6)" : "rgba(0,240,255,.45)"})` }}
-          />
+          {line && (
+            <>
+              <path d={area} fill="url(#areaGrad)" />
+              <path
+                d={line}
+                fill="none"
+                stroke={reading.anomaly ? "#ff2d6f" : "url(#lineGrad)"}
+                strokeWidth="2.6"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                style={{ filter: `drop-shadow(0 0 6px ${reading.anomaly ? "rgba(255,45,111,.6)" : "rgba(0,240,255,.45)"})` }}
+              />
+            </>
+          )}
         </svg>
       </div>
 
@@ -121,19 +140,16 @@ export function HeartPanel({ reading, history }: Props) {
           janela <b className="t-mut">{history.length}s</b>
         </span>
         <span>
-          mín <b className="t-cyan">{stats.min}</b>
+          mín <b className="t-cyan">{stats.min ?? "--"}</b>
         </span>
         <span>
-          média <b className="t-mut">{stats.avg}</b>
+          média <b className="t-mut">{stats.avg ?? "--"}</b>
         </span>
         <span>
-          máx <b className={reading.anomaly ? "t-red" : "t-violet"}>{stats.max}</b>
+          máx <b className={reading.anomaly ? "t-red" : "t-violet"}>{stats.max ?? "--"}</b>
         </span>
         <span>
-          amostra{" "}
-          <b className="t-green">
-            {new Date(reading.ts).toLocaleTimeString("pt-BR", { hour12: false })}
-          </b>
+          amostra <b className="t-green">{sampleTime}</b>
         </span>
       </div>
     </section>

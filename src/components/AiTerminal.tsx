@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConvex } from "convex/react";
 import type { VitalsReading } from "../hooks/useVitals";
+import { EMERGENCY_BPM } from "../hooks/useBluetoothWatch";
 
 interface Props {
   latest: VitalsReading;
+  /** Envia a notificação para a tela AMOLED via BLE; resolve false se o relógio não estiver pareado. */
+  onSendToWatch?: (text: string) => Promise<boolean>;
 }
 
 type Tone = "ok" | "ai" | "alert" | "warn" | "sys";
@@ -16,7 +19,7 @@ interface Line {
 }
 
 const META: Record<Tone, { cls: string; tag: string }> = {
-  ok: { cls: "green", tag: "OK" },
+  ok: { cls: "green", tag: "" },
   ai: { cls: "violet", tag: "IA" },
   alert: { cls: "red", tag: "ALERTA" },
   warn: { cls: "amber", tag: "AVISO" },
@@ -32,7 +35,20 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export function AiTerminal({ latest }: Props) {
+/** Intervalo mínimo entre consultas automáticas de emergência (economia de cota). */
+const EMERGENCY_COOLDOWN_MS = 60_000;
+
+/**
+ * Terminal do assistente de IA — 100% sob demanda.
+ *
+ * Regras de acionamento da IA (Groq via action do Convex):
+ *  1. clique no botão "Consultar IA" (dados reais do relógio);
+ *  2. gatilho de emergência real: BPM >= 150 vindo do relógio físico
+ *     (máx. 1 consulta a cada 60 s);
+ * Nada é analisado automaticamente em loop e nada é enviado ao modelo
+ * enquanto o relógio estiver desconectado.
+ */
+export function AiTerminal({ latest, onSendToWatch }: Props) {
   const [lines, setLines] = useState<Line[]>([]);
   const [phase, setPhase] = useState<"idle" | "analyze" | "send">("idle");
 
@@ -43,9 +59,7 @@ export function AiTerminal({ latest }: Props) {
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
 
-  const lastStepsRef = useRef(latest.steps);
-  const prevAnomalyRef = useRef(latest.anomaly);
-  const prevStressHighRef = useRef(latest.stress >= 70);
+  const lastEmergencyRef = useRef(0);
   const timersRef = useRef<number[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const aliveRef = useRef(true);
@@ -66,27 +80,25 @@ export function AiTerminal({ latest }: Props) {
     timersRef.current.push(id);
   }, []);
 
-  // feed inicial
+  // feed inicial — apenas informativo, NENHUMA análise automática
   useEffect(() => {
-    pushLine("link de telemetria estabelecido — aguardando dados do LS16", "sys");
-    pushLine("módulo de análise habilitado · deploy moonlit-walrus-691", "sys");
-    later(() => runAnalysis(), 2600);
+    pushLine("link de telemetria estabelecido — aguardando conexão do LS16 via BLE", "sys");
+    pushLine("IA sob demanda — nenhuma análise é disparada automaticamente", "sys");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const hasData = latest.bpm != null;
+
+  /** Análise local (fallback) usando apenas a última leitura REAL. */
   const produceLines = useCallback((): Array<{ text: string; tone: Tone }> => {
     const r = latestRef.current;
-    if (r.ts === 0) return [];
-
-    const stepDelta = Math.max(0, r.steps - lastStepsRef.current);
-    lastStepsRef.current = r.steps;
+    if (r.bpm == null || r.ts === 0) return [];
 
     const ritmo =
       r.bpm < 60 ? "repouso profundo" : r.bpm < 100 ? "faixa saudável" : "elevado";
-    const stress = stressLabel(r.stress);
     const out: Array<{ text: string; tone: Tone }> = [];
 
-    if (r.spo2 < 95) {
+    if (r.spo2 != null && r.spo2 < 95) {
       out.push({
         tone: "alert",
         text: `Saturação de oxigênio em ${r.spo2.toFixed(1)}% (abaixo de 95%) — recomendo respirar fundo e repetir a medição em 1 min.`,
@@ -94,15 +106,13 @@ export function AiTerminal({ latest }: Props) {
     }
 
     let recomendacao: string;
-    if (r.stress >= 70) {
+    if (r.stress != null && r.stress >= 70) {
       recomendacao = pick([
         "pausa curta + respiração 4-7-8 para baixar o estresse",
         "check de hidratação — estresse elevado costuma acompanhar déficit hídrico",
       ]);
-    } else if (r.spo2 < 96) {
+    } else if (r.spo2 != null && r.spo2 < 96) {
       recomendacao = "postura ereta e respiração nasal lenta até a SpO2 normalizar";
-    } else if (stepDelta >= 4) {
-      recomendacao = "esforço detectado — manter cadência atual é seguro";
     } else {
       recomendacao = pick([
         "manter rotina — sinais vitais dentro do esperado",
@@ -110,17 +120,18 @@ export function AiTerminal({ latest }: Props) {
       ]);
     }
 
+    const detalhes = [
+      `BPM ${r.bpm}`,
+      r.spo2 != null ? `SpO2 ${r.spo2.toFixed(1)}%` : null,
+      r.stress != null ? `estresse ${r.stress}/100 (${stressLabel(r.stress)})` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
     out.push({
       tone: "ai",
-      text: `Análise ${ritmo}: BPM ${r.bpm} · SpO2 ${r.spo2.toFixed(1)}% · estresse ${r.stress}/100 (${stress}). → ${recomendacao}.`,
+      text: `Análise ${ritmo}: ${detalhes}. → ${recomendacao}.`,
     });
-
-    if (stepDelta > 0 && Math.random() < 0.5) {
-      out.push({
-        tone: "ai",
-        text: `Registrados ${stepDelta} passos nesta janela · ${r.calories.toLocaleString("pt-BR")} kcal no dia.`,
-      });
-    }
     return out;
   }, []);
 
@@ -129,10 +140,10 @@ export function AiTerminal({ latest }: Props) {
   };
 
   // consulta o modelo real no backend (Groq via action do Convex);
-  // devolve null quando a action ainda nao esta no deploy / sem chave
+  // devolve null quando a action ainda não está no deploy / sem chave / sem dados
   const consultGroq = useCallback(async (): Promise<string | null> => {
     const r = latestRef.current;
-    if (r.ts === 0) return null;
+    if (r.bpm == null || r.ts === 0) return null;
     try {
       const timeout = new Promise<never>((_, reject) => {
         const id = window.setTimeout(() => reject(new Error("groq timeout")), 15000);
@@ -141,11 +152,11 @@ export function AiTerminal({ latest }: Props) {
       const res = (await Promise.race([
         convexClient.action("ai:analyzeVitals", {
           bpm: r.bpm,
-          spo2: r.spo2,
-          stress: r.stress,
-          steps: r.steps,
-          calories: r.calories,
-          anomaly: r.anomaly,
+          spo2: r.spo2 ?? 0,
+          stress: r.stress ?? 0,
+          steps: r.steps ?? 0,
+          calories: r.calories ?? 0,
+          anomaly: r.bpm >= EMERGENCY_BPM,
         }),
         timeout,
       ])) as { ok?: boolean; text?: string };
@@ -155,57 +166,33 @@ export function AiTerminal({ latest }: Props) {
     }
   }, [convexClient]);
 
-  const runAnalysis = useCallback(() => {
-    if (phaseRef.current !== "idle") return;
-    setPhaseSafe("analyze");
-    later(() => {
-      const produced = produceLines();
-      for (const p of produced) pushLine(p.text, p.tone);
-      setPhaseSafe("idle");
-    }, 1500);
-  }, [later, produceLines, pushLine, setPhaseSafe]);
-
-  // ciclo periódico de análise
-  useEffect(() => {
-    const id = window.setInterval(() => runAnalysis(), 7000);
-    return () => window.clearInterval(id);
-  }, [runAnalysis]);
-
-  // transições de alerta (pico de frequência / estresse alto)
+  // gatilho de emergência REAL: BPM >= 150 vindo do relógio físico.
+  // Única chamada automática da IA — limitada a 1 a cada 60 s.
   useEffect(() => {
     const r = latestRef.current;
-    const anomalyRising = r.anomaly && !prevAnomalyRef.current;
-    const anomalyFalling = !r.anomaly && prevAnomalyRef.current;
-    prevAnomalyRef.current = r.anomaly;
-
-    const stressHigh = r.stress >= 70;
-    const stressRising = stressHigh && !prevStressHighRef.current;
-    const stressFalling = !stressHigh && prevStressHighRef.current;
-    prevStressHighRef.current = stressHigh;
-
-    if (anomalyRising) {
-      setPhaseSafe("analyze");
-      pushLine(
-        `Pico de frequência detectado: BPM ${r.bpm} — cruzando com o acelerômetro e gerando alerta de acompanhamento.`,
-        "alert",
-      );
-      later(async () => {
-        const groq = await consultGroq();
-        if (!aliveRef.current) return;
-        if (groq) pushLine(groq, "ai");
-        setPhaseSafe("idle");
-      }, 600);
-    } else if (anomalyFalling) {
-      pushLine(
-        `Frequência normalizou para ${r.bpm} bpm. Evento registrado no histórico de sessão.`,
-        "ok",
-      );
-    }
-    if (stressRising) {
-      pushLine(`Estresse subiu para ${r.stress}/100 — monitorando sinais de sobrecarga.`, "warn");
-    } else if (stressFalling) {
-      pushLine(`Estresse voltou a ${r.stress}/100 (${stressLabel(r.stress)}).`, "ok");
-    }
+    if (r.bpm == null || r.bpm < EMERGENCY_BPM) return;
+    const t = Date.now();
+    if (t - lastEmergencyRef.current < EMERGENCY_COOLDOWN_MS) return;
+    if (phaseRef.current !== "idle") return;
+    lastEmergencyRef.current = t;
+    pushLine(
+      `Emergência real detectada: BPM ${r.bpm} (≥ ${EMERGENCY_BPM}) — acionando análise de acompanhamento.`,
+      "alert",
+    );
+    setPhaseSafe("analyze");
+    later(async () => {
+      const groq = await consultGroq();
+      if (!aliveRef.current) return;
+      if (groq) {
+        pushLine(groq, "ai");
+      } else {
+        pushLine(
+          "IA remota indisponível — monitore o próximo ciclo e procure assistência se o pico persistir.",
+          "warn",
+        );
+      }
+      setPhaseSafe("idle");
+    }, 400);
   }, [latest, later, pushLine, setPhaseSafe, consultGroq]);
 
   // rolagem automática
@@ -224,21 +211,27 @@ export function AiTerminal({ latest }: Props) {
     };
   }, []);
 
-  const sendTest = () => {
+  const sendTest = async () => {
     if (phaseRef.current !== "idle") return;
     setPhaseSafe("send");
-    later(() => {
-      const r = latestRef.current;
-      pushLine(
-        `Notificação enviada ao relógio: vibração + texto "Haylou AI · ${r.anomaly ? "alerta de pico" : "análise concluída ✓"}".`,
-        "ok",
-      );
-      setPhaseSafe("idle");
-    }, 1100);
+    const text = `Haylou AI · ${hasData ? "análise concluída ✓" : "teste de notificação"}`;
+    let ok = true;
+    if (onSendToWatch) {
+      ok = await onSendToWatch(text);
+    }
+    if (!aliveRef.current) return;
+    pushLine(
+      ok
+        ? `Notificação enviada ao relógio: vibração + texto "${text}".`
+        : `Relógio não conectado — envio BLE ignorado. Conecte o smartwatch para enviar (tentativa registrada: "${text}").`,
+      ok ? "ok" : "warn",
+    );
+    setPhaseSafe("idle");
   };
 
   const askGroq = async () => {
     if (phaseRef.current !== "idle") return;
+    if (!hasData) return; // sem leitura real não há o que analisar
     setPhaseSafe("analyze");
     const groq = await consultGroq();
     if (!aliveRef.current) return;
@@ -264,12 +257,20 @@ export function AiTerminal({ latest }: Props) {
     ) : phase === "analyze" ? (
       <span className="ai-state work">
         <span className={`led ${latest.anomaly ? "red led-pulse" : "cyan led-pulse"}`} />
-        {latest.anomaly ? "analisando pico…" : "analisando…"}
+        {latest.anomaly ? "analisando emergência…" : "analisando…"}
       </span>
     ) : (
       <span className="ai-state">
-        <span className={`led ${latest.anomaly ? "red led-pulse" : "green"}`} />
-        {latest.anomaly ? "pico em monitoramento" : "monitorando"}
+        <span
+          className={`led ${
+            !hasData ? "off" : latest.anomaly ? "red led-pulse" : "green"
+          }`}
+        />
+        {!hasData
+          ? "relógio desconectado — IA inativa"
+          : latest.anomaly
+            ? "emergência em monitoramento"
+            : "IA sob demanda"}
       </span>
     );
 
@@ -282,7 +283,7 @@ export function AiTerminal({ latest }: Props) {
             assistente · convex ai
           </span>
           <h2 className="panel-title">
-            Análise <span className="t-violet">em tempo real</span>
+            Análise <span className="t-violet">sob demanda</span>
           </h2>
         </div>
         {chip}
@@ -290,7 +291,7 @@ export function AiTerminal({ latest }: Props) {
 
       <div className="ai-body" ref={bodyRef}>
         {lines.length === 0 ? (
-          <div className="empty-note">inicializando o stream de análise…</div>
+          <div className="empty-note">inicializando o terminal de IA…</div>
         ) : (
           lines.map((l) => {
             const meta = META[l.tone];
@@ -310,7 +311,12 @@ export function AiTerminal({ latest }: Props) {
       </div>
 
       <div className="ai-foot">
-        <button className="btn" onClick={() => void askGroq()} disabled={phase !== "idle"}>
+        <button
+          className="btn"
+          onClick={() => void askGroq()}
+          disabled={phase !== "idle" || !hasData}
+          title={!hasData ? "Conecte o relógio para ter dados reais para analisar" : undefined}
+        >
           <span className="send-ico" aria-hidden="true">
             ✦
           </span>
@@ -323,7 +329,8 @@ export function AiTerminal({ latest }: Props) {
           {phase === "send" ? "Enviando…" : "Testar notificação no relógio"}
         </button>
         <span className="t-dim" style={{ fontSize: 11 }}>
-          push de teste para a tela AMOLED do RT3 (canal BLE real chega com o pareamento)
+          a IA só é consultada quando você pedir (ou em emergência real: BPM ≥ {EMERGENCY_BPM}) —
+          nenhuma chamada automática em loop
         </span>
       </div>
     </section>

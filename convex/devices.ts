@@ -22,6 +22,23 @@ export const listSettings = query({
   },
 });
 
+export const updateBattery = mutation({
+  args: {
+    battery: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // atualiza o dispositivo online mais recente com o nível lido via BLE
+    const online = await ctx.db.query("devices").collect();
+    const target =
+      online.find((d) => d.status === "online") ?? online[0];
+    if (!target) return;
+    await ctx.db.patch(target._id, {
+      battery: args.battery,
+      lastSync: Date.now(),
+    });
+  },
+});
+
 export const addDevice = mutation({
   args: {
     name: v.string(),

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { useVitals } from "./hooks/useVitals";
+import { useBluetoothWatch } from "./hooks/useBluetoothWatch";
 import { TopBar } from "./components/TopBar";
+import { WatchConnect } from "./components/WatchConnect";
 import { HeartPanel } from "./components/HeartPanel";
 import { MetricCards } from "./components/MetricCards";
 import { AiTerminal } from "./components/AiTerminal";
@@ -9,11 +10,17 @@ import { SyncFooter } from "./components/SyncFooter";
 import "./index.css";
 
 export default function App() {
-  const { history, ...reading } = useVitals();
+  const watch = useBluetoothWatch();
+  const connected = watch.status.phase === "connected";
 
   useEffect(() => {
     document.title = "Haylou AI · Biometria & IA";
   }, []);
+
+  // a biometria vem 100% do relógio físico via Web Bluetooth:
+  // desconectado → valores null ("--") e nenhum dado enviado ao Convex
+  const reading = watch.reading;
+  const history = watch.history;
 
   return (
     <div className="app">
@@ -25,9 +32,15 @@ export default function App() {
       <TopBar />
 
       <main>
+        <WatchConnect
+          status={watch.status}
+          onConnect={() => void watch.connect()}
+          onDisconnect={watch.disconnect}
+        />
+
         <section className="dash-hero">
           <HeartPanel reading={reading} history={history} />
-          <AiTerminal latest={reading} />
+          <AiTerminal latest={reading} onSendToWatch={watch.sendNotification} />
         </section>
 
         <MetricCards reading={reading} />
@@ -35,9 +48,10 @@ export default function App() {
         <DbPanels />
 
         <p className="demo-note">
-          <span className="led amber" />
-          telemetria exibida é um stream simulado do sensor — quando o firmware RT3 enviar dados via
-          BLE/API, a mesma tela passa a consumir o Convex em tempo real
+          <span className={`led ${connected ? "green led-pulse" : "red off"}`} />
+          {connected
+            ? "telemetria ao vivo do relógio via Web Bluetooth — cada leitura real é persistida no Convex"
+            : "relógio desconectado — nenhuma biometria é exibida nem enviada ao Convex. Conecte o Haylou RT3 para iniciar a telemetria real"}
         </p>
       </main>
 
