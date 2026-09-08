@@ -52,7 +52,7 @@ export function WatchConnect({ status, onConnect, onDisconnect }: Props) {
               <span className="mono">
                 {failed
                   ? "nenhum dado é enviado ao Convex até reconectar"
-                  : "procurando \"HAYLOU Solar Plus\" (RT3/LS16) · serviço HR 0x180D + canal FFE0"}
+                  : "procurando \"HAYLOU Solar Plus\" (RT3/LS16) · protocolo GloryFit 0x55FF/0x56FF + HR 0x180D"}
               </span>
             </span>
           </>

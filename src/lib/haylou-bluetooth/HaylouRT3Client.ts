@@ -77,6 +77,8 @@ export interface CategoryMeta {
   icon: string;
   /** CategoryID do perfil ANS (0x1811) — 0x09 = Instant Message, etc. */
   ansCategoryId: number;
+  /** Código de tipo do protocolo GloryFit (enviado no pacote 0xC5). */
+  gloryFitCode: number;
   /** Padrão de vibração sugerido (ms on/off/on). */
   vibrationMs: number[];
 }
@@ -87,48 +89,76 @@ export interface CategoryMeta {
  * produtividade e IA — o payload final é formatado pelo relógio conforme
  * o protocolo usado no `encodePayload`.
  */
+/** Códigos de tipo do protocolo GloryFit (GloryFitNotificationType do Gadgetbridge). */
+const GF_TYPE = {
+  CALL: 0,
+  QQ: 1,
+  WECHAT: 2,
+  SMS: 3,
+  UNKNOWN_APP: 4,
+  FACEBOOK: 5,
+  TWITTER: 6,
+  WHATSAPP: 7,
+  SKYPE: 8,
+  FACEBOOK_MESSENGER: 9,
+  HANGOUTS: 10,
+  LINE: 11,
+  LINKEDIN: 12,
+  INSTAGRAM: 13,
+  VIBER: 14,
+  KAKAO_TALK: 15,
+  VK: 16,
+  SNAPCHAT: 17,
+  EMAIL: 19,
+  TUMBLR: 21,
+  PINTEREST: 22,
+  YOUTUBE: 23,
+  TELEGRAM: 24,
+  NO_ICON: 25,
+} as const;
+
 export const NOTIFICATION_CATEGORIES: Record<AppCategory, CategoryMeta> = {
   // Mensagens & comunicação
-  whatsapp: { label: "WhatsApp", icon: "💬", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
-  whatsapp_business: { label: "WhatsApp Business", icon: "💼", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
-  telegram: { label: "Telegram", icon: "✈️", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
-  signal: { label: "Signal", icon: "🔒", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
-  sms: { label: "SMS", icon: "📱", ansCategoryId: 0x05, vibrationMs: [150, 100, 150] },
-  mms: { label: "MMS", icon: "📎", ansCategoryId: 0x05, vibrationMs: [150, 100, 150] },
-  messenger: { label: "Messenger", icon: "💬", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
-  discord: { label: "Discord", icon: "🎮", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
-  slack: { label: "Slack", icon: "🧵", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
-  teams: { label: "Microsoft Teams", icon: "👥", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
-  google_chat: { label: "Google Chat", icon: "💭", ansCategoryId: 0x09, vibrationMs: [150, 100, 150] },
+  whatsapp: { label: "WhatsApp", icon: "💬", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.WHATSAPP, vibrationMs: [150, 100, 150] },
+  whatsapp_business: { label: "WhatsApp Business", icon: "💼", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.WHATSAPP, vibrationMs: [150, 100, 150] },
+  telegram: { label: "Telegram", icon: "✈️", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.TELEGRAM, vibrationMs: [150, 100, 150] },
+  signal: { label: "Signal", icon: "🔒", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.WECHAT, vibrationMs: [150, 100, 150] },
+  sms: { label: "SMS", icon: "📱", ansCategoryId: 0x05, gloryFitCode: GF_TYPE.SMS, vibrationMs: [150, 100, 150] },
+  mms: { label: "MMS", icon: "📎", ansCategoryId: 0x05, gloryFitCode: GF_TYPE.SMS, vibrationMs: [150, 100, 150] },
+  messenger: { label: "Messenger", icon: "💬", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.FACEBOOK_MESSENGER, vibrationMs: [150, 100, 150] },
+  discord: { label: "Discord", icon: "🎮", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.VIBER, vibrationMs: [150, 100, 150] },
+  slack: { label: "Slack", icon: "🧵", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [150, 100, 150] },
+  teams: { label: "Microsoft Teams", icon: "👥", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [150, 100, 150] },
+  google_chat: { label: "Google Chat", icon: "💭", ansCategoryId: 0x09, gloryFitCode: GF_TYPE.HANGOUTS, vibrationMs: [150, 100, 150] },
   // Redes sociais & mídia
-  instagram: { label: "Instagram", icon: "📸", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
-  facebook: { label: "Facebook", icon: "👍", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
-  tiktok: { label: "TikTok", icon: "🎵", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
-  x: { label: "X (Twitter)", icon: "🐦", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
-  linkedin: { label: "LinkedIn", icon: "💼", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
-  pinterest: { label: "Pinterest", icon: "📌", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
-  threads: { label: "Threads", icon: "🧵", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
-  youtube: { label: "YouTube", icon: "▶️", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
-  twitch: { label: "Twitch", icon: "🎮", ansCategoryId: 0x02, vibrationMs: [120, 80, 120] },
+  instagram: { label: "Instagram", icon: "📸", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.INSTAGRAM, vibrationMs: [120, 80, 120] },
+  facebook: { label: "Facebook", icon: "👍", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.FACEBOOK, vibrationMs: [120, 80, 120] },
+  tiktok: { label: "TikTok", icon: "🎵", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [120, 80, 120] },
+  x: { label: "X (Twitter)", icon: "🐦", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.TWITTER, vibrationMs: [120, 80, 120] },
+  linkedin: { label: "LinkedIn", icon: "💼", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.LINKEDIN, vibrationMs: [120, 80, 120] },
+  pinterest: { label: "Pinterest", icon: "📌", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.PINTEREST, vibrationMs: [120, 80, 120] },
+  threads: { label: "Threads", icon: "🧵", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [120, 80, 120] },
+  youtube: { label: "YouTube", icon: "▶️", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.YOUTUBE, vibrationMs: [120, 80, 120] },
+  twitch: { label: "Twitch", icon: "🎮", ansCategoryId: 0x02, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [120, 80, 120] },
   // Chamadas & telefonia
-  call: { label: "Ligação", icon: "📞", ansCategoryId: 0x03, vibrationMs: [300, 150, 300] },
-  voip: { label: "Chamada VoIP", icon: "📱", ansCategoryId: 0x03, vibrationMs: [300, 150, 300] },
-  voicemail: { label: "Correio de voz", icon: "📼", ansCategoryId: 0x06, vibrationMs: [300, 150, 300] },
+  call: { label: "Ligação", icon: "📞", ansCategoryId: 0x03, gloryFitCode: GF_TYPE.CALL, vibrationMs: [300, 150, 300] },
+  voip: { label: "Chamada VoIP", icon: "📱", ansCategoryId: 0x03, gloryFitCode: GF_TYPE.CALL, vibrationMs: [300, 150, 300] },
+  voicemail: { label: "Correio de voz", icon: "📼", ansCategoryId: 0x06, gloryFitCode: GF_TYPE.CALL, vibrationMs: [300, 150, 300] },
   // Finanças & bancos
-  bank: { label: "Banco", icon: "🏦", ansCategoryId: 0x08, vibrationMs: [200, 100, 200, 100, 200] },
-  wallet: { label: "Carteira digital", icon: "👛", ansCategoryId: 0x08, vibrationMs: [200, 100, 200, 100, 200] },
-  broker: { label: "Corretora", icon: "📈", ansCategoryId: 0x08, vibrationMs: [200, 100, 200, 100, 200] },
-  fintech: { label: "Fintech", icon: "💳", ansCategoryId: 0x08, vibrationMs: [200, 100, 200, 100, 200] },
-  pix: { label: "Pix / Transação", icon: "⚡", ansCategoryId: 0x08, vibrationMs: [200, 100, 200, 100, 200] },
+  bank: { label: "Banco", icon: "🏦", ansCategoryId: 0x08, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [200, 100, 200, 100, 200] },
+  wallet: { label: "Carteira digital", icon: "👛", ansCategoryId: 0x08, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [200, 100, 200, 100, 200] },
+  broker: { label: "Corretora", icon: "📈", ansCategoryId: 0x08, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [200, 100, 200, 100, 200] },
+  fintech: { label: "Fintech", icon: "💳", ansCategoryId: 0x08, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [200, 100, 200, 100, 200] },
+  pix: { label: "Pix / Transação", icon: "⚡", ansCategoryId: 0x08, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [200, 100, 200, 100, 200] },
   // Utilitários & produtividade
-  calendar: { label: "Calendário", icon: "📅", ansCategoryId: 0x07, vibrationMs: [120, 80, 120] },
-  reminder: { label: "Lembrete", icon: "⏰", ansCategoryId: 0x07, vibrationMs: [120, 80, 120] },
-  alarm: { label: "Alarme", icon: "🔔", ansCategoryId: 0x07, vibrationMs: [400, 200, 400] },
-  email: { label: "E-mail", icon: "✉️", ansCategoryId: 0x01, vibrationMs: [120, 80, 120] },
-  tasks: { label: "Tarefas", icon: "✅", ansCategoryId: 0x07, vibrationMs: [120, 80, 120] },
-  navigation: { label: "Navegação/GPS", icon: "🧭", ansCategoryId: 0x07, vibrationMs: [200, 120, 200] },
+  calendar: { label: "Calendário", icon: "📅", ansCategoryId: 0x07, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [120, 80, 120] },
+  reminder: { label: "Lembrete", icon: "⏰", ansCategoryId: 0x07, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [120, 80, 120] },
+  alarm: { label: "Alarme", icon: "🔔", ansCategoryId: 0x07, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [400, 200, 400] },
+  email: { label: "E-mail", icon: "✉️", ansCategoryId: 0x01, gloryFitCode: GF_TYPE.EMAIL, vibrationMs: [120, 80, 120] },
+  tasks: { label: "Tarefas", icon: "✅", ansCategoryId: 0x07, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [120, 80, 120] },
+  navigation: { label: "Navegação/GPS", icon: "🧭", ansCategoryId: 0x07, gloryFitCode: GF_TYPE.UNKNOWN_APP, vibrationMs: [200, 120, 200] },
   // Assistente de IA (manual)
-  ai: { label: "Assistente IA", icon: "✨", ansCategoryId: 0x08, vibrationMs: [150, 100, 150] },
+  ai: { label: "Assistente IA", icon: "✨", ansCategoryId: 0x08, gloryFitCode: GF_TYPE.NO_ICON, vibrationMs: [150, 100, 150] },
 };
 
 export const DEFAULT_CATEGORY: AppCategory = "ai";
@@ -257,6 +287,36 @@ const DEVICE_INFORMATION_SERVICE = UUID("180a");
 /** Serviço UART-like comum nos relógios Haylou/GloryFit (FFE0/FFE1). */
 const HAYLOU_SERVICE = UUID("ffe0");
 const HAYLOU_WRITE_CHAR = UUID("ffe1");
+/**
+ * Protocolo proprietário GLORYFIT — o mesmo usado pelo HAYLOU RT3 (LS16).
+ * Extraído do Gadgetbridge (GloryFitSupport.kt):
+ *   - 0x55FF: serviço de comandos (CMD)
+ *   - 0x56FF: serviço de dados (DATA)
+ */
+const GLORYFIT_CMD_SERVICE = UUID("55ff");
+const GLORYFIT_CMD_WRITE = UUID("33f1");
+const GLORYFIT_CMD_READ = UUID("33f2");
+const GLORYFIT_DATA_SERVICE = UUID("56ff");
+const GLORYFIT_DATA_WRITE = UUID("34f1");
+const GLORYFIT_DATA_READ = UUID("34f2");
+
+// comandos do protocolo GloryFit (Gadgetbridge)
+const GF_CMD_VERSION = 0xa1;
+const GF_CMD_BATTERY = 0xa2;
+const GF_CMD_DATE_TIME = 0xa3;
+const GF_CMD_NOTIFICATION = 0xc5;
+const GF_CMD_SMS_QUICK_REPLY = 0x52;
+const GF_CMD_STEPS = 0xb2;
+const GF_CMD_HEART_RATE = 0xf7;
+const GF_CMD_SPO2 = 0x34;
+const GF_CMD_ACTION = 0xd1;
+const GF_CMD_VIBRATE = 0xab;
+const GF_FETCH_START = 0xfa;
+const GF_FETCH_DATA = 0x07;
+const GF_FETCH_END = 0xfd;
+const GF_NOTIFICATION_END = 0xfd;
+/** tamanho do chunk de notificação usado pelo app oficial (20 bytes) */
+const GF_CHUNK_SIZE = 20;
 
 /**
  * Nome exato anunciado pelo hardware (extraído do advertising do RT3/LS16):
@@ -286,6 +346,12 @@ export class HaylouRT3Client {
   private ansNewAlertChar: BluetoothRemoteGATTCharacteristic | null = null;
   /** canal de escrita proprietário Haylou (FFE1) — usado como fallback do ANS */
   private haylouWriteChar: BluetoothRemoteGATTCharacteristic | null = null;
+  /** canal de comando do protocolo GloryFit (0x33F1/0x33F2) */
+  private gfCmdWrite: BluetoothRemoteGATTCharacteristic | null = null;
+  private gfCmdRead: BluetoothRemoteGATTCharacteristic | null = null;
+  /** canal de dados do protocolo GloryFit (0x34F1/0x34F2) */
+  private gfDataWrite: BluetoothRemoteGATTCharacteristic | null = null;
+  private gfDataRead: BluetoothRemoteGATTCharacteristic | null = null;
   /** características notificáveis descobertas (telemetria bruta) */
   private rawChars: BluetoothRemoteGATTCharacteristic[] = [];
 
@@ -355,9 +421,11 @@ export class HaylouRT3Client {
           BATTERY_SERVICE,
           BLOOD_PRESSURE_SERVICE,
           ALERT_NOTIFICATION_SERVICE,
-          HAYLOU_SERVICE, // canal proprietário Haylou/GloryFit (FFE1)
+          HAYLOU_SERVICE, // canal FFE1 (fallback antigo)
           GENERIC_ACCESS_SERVICE, // 0x1800
           DEVICE_INFORMATION_SERVICE, // 0x180A
+          GLORYFIT_CMD_SERVICE, // 0x55FF — protocolo real do RT3 (comandos)
+          GLORYFIT_DATA_SERVICE, // 0x56FF — protocolo real do RT3 (dados)
         ],
       });
     } catch (err) {
@@ -390,9 +458,77 @@ export class HaylouRT3Client {
       this.readBattery(),
       this.setupAlertNotification(),
       this.setupBloodPressure(),
+      this.setupGloryFit(), // handshake oficial do RT3 (hora, versão, bateria)
       this.subscribeRawTelemetry(),
     ]);
     this.setupRssi();
+  }
+
+  /**
+   * Handshake de inicialização do protocolo GloryFit (o mesmo que o app
+   * oficial faz no primeiro pareamento). Sem ele o relógio fica "preso"
+   * na tela de pareamento / estado de fábrica, sem liberar as funções.
+   *
+   * 1) assina as notificações dos canais de comando (0x33F2) e dados (0x34F2);
+   * 2) pede a versão do firmware (0xA1);
+   * 3) pede a bateria (0xA2);
+   * 4) envia a data/hora do celular (0xA3) — é o que "destrava" o relógio.
+   */
+  private async setupGloryFit(): Promise<void> {
+    if (!this.server) return;
+    try {
+      const cmdSvc = await this.server.getPrimaryService(GLORYFIT_CMD_SERVICE);
+      const dataSvc = await this.server.getPrimaryService(GLORYFIT_DATA_SERVICE);
+      const cmdWrite = await cmdSvc.getCharacteristic(GLORYFIT_CMD_WRITE);
+      const cmdRead = await cmdSvc.getCharacteristic(GLORYFIT_CMD_READ);
+      this.gfCmdWrite = cmdWrite;
+      this.gfCmdRead = cmdRead;
+
+      cmdRead.addEventListener("characteristicvaluechanged", this.handleGfCommand);
+      await cmdRead.startNotifications();
+
+      // canal de dados (telemetria: passos, sono, SpO2)
+      try {
+        const dataRead = await dataSvc.getCharacteristic(GLORYFIT_DATA_READ);
+        this.gfDataRead = dataRead;
+        dataRead.addEventListener("characteristicvaluechanged", this.handleGfData);
+        await dataRead.startNotifications();
+      } catch {
+        // nem todo modelo expõe o canal de dados
+      }
+
+      if (cmdWrite.properties.write || cmdWrite.properties.writeWithoutResponse) {
+        const write = (bytes: number[]) => {
+          const payload = Uint8Array.from(bytes);
+          if (cmdWrite.properties.write) return cmdWrite.writeValue(payload);
+          return cmdWrite.writeValueWithoutResponse(payload);
+        };
+        // handshake: versão + bateria + hora/data (destrava o relógio)
+        await write([GF_CMD_VERSION]);
+        await write([GF_CMD_BATTERY]);
+        await this.writeGfDateTime(write);
+      }
+    } catch {
+      // sem o serviço GloryFit, segue com os demais canais
+    }
+  }
+
+  /** Envia a data/hora atual no formato GloryFit (0xA3, big-endian). */
+  private async writeGfDateTime(
+    write: (bytes: number[]) => Promise<void>,
+  ): Promise<void> {
+    const now = new Date();
+    const payload = [
+      GF_CMD_DATE_TIME,
+      (now.getFullYear() >> 8) & 0xff,
+      now.getFullYear() & 0xff,
+      now.getMonth() + 1,
+      now.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+    ];
+    await write(payload);
   }
 
   disconnect(): void {
@@ -419,16 +555,53 @@ export class HaylouRT3Client {
     const vibration = n.vibrationMs ?? meta.vibrationMs;
     const text = n.title ? `${n.title}\n${n.text}` : n.text;
 
-    // 1) perfil ANS padrão (0x1811 / New Alert)
+    // 1) protocolo REAL do RT3: GloryFit (0xC5 em chunks, como o app oficial)
+    if (await this.writeGfNotification(meta.gloryFitCode, text)) return;
+    // 2) perfil ANS padrão (0x1811 / New Alert)
     if (await this.writeAnsiNewAlert(meta.ansCategoryId, text)) return;
-    // 2) canal proprietário Haylou/GloryFit (FFE0/FFE1)
+    // 3) canal proprietário Haylou/GloryFit (FFE0/FFE1)
     if (await this.writeHaylouChannel(n, vibration)) return;
-    // 3) qualquer característica gravável exposta
+    // 4) qualquer característica gravável exposta
     const target = await this.findWritableCharacteristic();
     if (!target) {
       throw new Error("Nenhuma característica gravável exposta pelo relógio");
     }
     await target.writeValue(this.encodePayload(n.category, n.title, n.text, vibration));
+  }
+
+  /**
+   * Envia a notificação no formato do protocolo GloryFit (0xC5):
+   * chunks de 20 bytes [0xC5, idx, (tipo, tamanho no 1º), payload…]
+   * e fecha com [0xC5, 0xFD]. Igual ao app oficial/Gadgetbridge.
+   */
+  private async writeGfNotification(type: number, text: string): Promise<boolean> {
+    const char = this.gfCmdWrite;
+    if (!char) return false;
+    const write = (bytes: number[]) => {
+      const payload = Uint8Array.from(bytes);
+      if (char.properties.write) return char.writeValue(payload);
+      return char.writeValueWithoutResponse(payload);
+    };
+    try {
+      const body = new TextEncoder().encode(text.slice(0, 240));
+      let idx = 0;
+      for (let off = 0; off < body.length; ) {
+        const buf: number[] = [GF_CMD_NOTIFICATION, idx & 0xff];
+        if (idx === 0) {
+          buf.push(type & 0xff);
+          buf.push(body.length & 0xff);
+        }
+        const end = Math.min(off + (GF_CHUNK_SIZE - buf.length), body.length);
+        for (let i = off; i < end; i++) buf.push(body[i]);
+        await write(buf);
+        off = end;
+        idx++;
+      }
+      await write([GF_CMD_NOTIFICATION, GF_NOTIFICATION_END]);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -462,11 +635,15 @@ export class HaylouRT3Client {
 
   private async setupHeartRate(): Promise<void> {
     if (!this.server) return;
-    const svc = await this.server.getPrimaryService(HEART_RATE_SERVICE);
-    const char = await svc.getCharacteristic(HEART_RATE_MEASUREMENT);
-    this.hrChar = char;
-    char.addEventListener("characteristicvaluechanged", this.handleHrValue);
-    await char.startNotifications();
+    try {
+      const svc = await this.server.getPrimaryService(HEART_RATE_SERVICE);
+      const char = await svc.getCharacteristic(HEART_RATE_MEASUREMENT);
+      this.hrChar = char;
+      char.addEventListener("characteristicvaluechanged", this.handleHrValue);
+      await char.startNotifications();
+    } catch {
+      // RT3 não expõe o HR padrão (0x180D) — o BPM real vem pelo 0xF7 do GloryFit
+    }
   }
 
   private async readBattery(): Promise<void> {
@@ -657,6 +834,44 @@ export class HaylouRT3Client {
   };
 
   /**
+   * Handler dos dados que chegam pelo canal de COMANDOS do GloryFit (0x33F2).
+   * Formatos (extraídos do GloryFitSupport.kt do Gadgetbridge):
+   *   [0xA1, versão…]  -> firmware
+   *   [0xA2, nível, carregando?] -> bateria
+   *   [0xF7, 0x07, …]  -> pacote de HR em blocos de 10 min
+   *   [0xB2, …]        -> passos
+   *   [0x34, …]        -> SpO2
+   */
+  private readonly handleGfCommand = (ev: Event) => {
+    const char = ev.target as BluetoothRemoteGATTCharacteristic;
+    const dv = char.value;
+    if (!dv || dv.byteLength < 1) return;
+    const cmd = dv.getUint8(0);
+    if (cmd === GF_CMD_BATTERY && dv.byteLength >= 2) {
+      this.onBattery?.(dv.getUint8(1));
+      return;
+    }
+    if (cmd === GF_CMD_HEART_RATE && dv.byteLength >= 2) {
+      const b1 = dv.getUint8(1);
+      if (b1 !== GF_FETCH_DATA && b1 !== GF_FETCH_END) {
+        // medição contínua: [0xF7, bpm]
+        if (b1 > 20 && b1 < 250) this.onSample?.({ bpm: b1, ts: Date.now() });
+      }
+      return;
+    }
+    // demais comandos (versão, passos, SpO2, sono…) vão ao parser bruto
+    this.onRawPacket?.(char.uuid, dv);
+  };
+
+  /** Handler dos dados do canal DATA do GloryFit (0x34F2) — telemetria bruta. */
+  private readonly handleGfData = (ev: Event) => {
+    const char = ev.target as BluetoothRemoteGATTCharacteristic;
+    const dv = char.value;
+    if (!dv) return;
+    this.onRawPacket?.(char.uuid, dv);
+  };
+
+  /**
    * parse do Blood Pressure Measurement (0x2A35):
    * flags bit0 → unidade (0 = mmHg, 1 = kPa); bit4 → Sistólica/Diastólica.
    */
@@ -705,6 +920,8 @@ export class HaylouRT3Client {
     remove(this.hrChar, this.handleHrValue);
     remove(this.batChar, this.handleBatteryValue);
     remove(this.bpChar, this.handleBpValue);
+    remove(this.gfCmdRead, this.handleGfCommand);
+    remove(this.gfDataRead, this.handleGfData);
     for (const c of this.rawChars) {
       c.removeEventListener("characteristicvaluechanged", this.handleRawValue);
     }
@@ -719,6 +936,10 @@ export class HaylouRT3Client {
     this.bpChar = null;
     this.ansNewAlertChar = null;
     this.haylouWriteChar = null;
+    this.gfCmdWrite = null;
+    this.gfCmdRead = null;
+    this.gfDataWrite = null;
+    this.gfDataRead = null;
     this.server = null;
   }
 }
