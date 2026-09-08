@@ -1,23 +1,24 @@
 {
   "name": "haylou-ai",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "convex:deploy": "convex deploy"
   },
   "dependencies": {
+    "convex": "^1.45.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "convex": "^1.10.0"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "typescript": "^5.5.4",
-    "vite": "^5.4.11",
-    "@vitejs/plugin-react": "^4.3.4",
     "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1"
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.11"
   }
 }
