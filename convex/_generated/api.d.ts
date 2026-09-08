@@ -8,9 +8,12 @@
  * @module
  */
 
+import type * as actions from "../actions.js";
 import type * as ai from "../ai.js";
 import type * as biometrics from "../biometrics.js";
 import type * as devices from "../devices.js";
+import type * as http from "../http.js";
+import type * as intentParser from "../intentParser.js";
 import type * as notifications from "../notifications.js";
 import type * as seed from "../seed.js";
 
@@ -21,9 +24,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  actions: typeof actions;
   ai: typeof ai;
   biometrics: typeof biometrics;
   devices: typeof devices;
+  http: typeof http;
+  intentParser: typeof intentParser;
   notifications: typeof notifications;
   seed: typeof seed;
 }>;

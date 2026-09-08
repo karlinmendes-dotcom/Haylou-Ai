@@ -58,4 +58,34 @@ export default defineSchema({
     status: v.union(v.literal("sent"), v.literal("failed"), v.literal("pending")),
     vibrationPattern: v.optional(v.string()),
   }).index("by_sentAt", ["sentAt"]),
+  /**
+   * Ações/intenções de automação pedidas pelo usuário (relógio, voz, web
+   * ou webhooks externos) — a "Central de Comandos" do ecossistema:
+   * WhatsApp, agenda, chamadas, abertura de apps, etc.
+   */
+  user_actions: defineTable({
+    /** Intenção normalizada (SEND_WHATSAPP, CREATE_CALENDAR_EVENT, …). */
+    intent: v.string(),
+    /** Origem da intenção: relógio (BLE), voz, web ou webhook externo. */
+    source: v.union(v.literal("watch"), v.literal("voice"), v.literal("web"), v.literal("webhook")),
+    /** Texto livre que originou a intenção (para auditoria/IA). */
+    rawText: v.optional(v.string()),
+    /** Dados estruturados da ação (destinatário, mensagem, horário, app…). */
+    payload: v.optional(v.any()),
+    /** Serviço alvo: "whatsapp", "calendar", "phone", "app", "n8n", … */
+    targetService: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("executing"),
+      v.literal("done"),
+      v.literal("failed"),
+    ),
+    /** Resposta do executor (ex.: id da mensagem enviada). */
+    result: v.optional(v.any()),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    executedAt: v.optional(v.number()),
+  })
+    .index("by_createdAt", ["createdAt"])
+    .index("by_status", ["status"]),
 });
