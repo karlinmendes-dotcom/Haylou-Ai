@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useConvex } from "convex/react";
 import type { VitalsReading } from "../hooks/useVitals";
-import { EMERGENCY_BPM } from "../hooks/useBluetoothWatch";
+import { EMERGENCY_BPM, type SendNotificationOptions } from "../hooks/useBluetoothWatch";
+import {
+  DEFAULT_CATEGORY,
+  NOTIFICATION_CATEGORIES,
+  type AppCategory,
+} from "../lib/haylou-bluetooth/HaylouRT3Client";
 
 interface Props {
   latest: VitalsReading;
-  /** Envia a notificação para a tela AMOLED via BLE; resolve false se o relógio não estiver pareado. */
-  onSendToWatch?: (text: string) => Promise<boolean>;
+  /** Envia a notificação universal para a tela AMOLED via BLE; resolve false se o relógio não estiver pareado. */
+  onSendToWatch?: (text: string, options?: SendNotificationOptions) => Promise<boolean>;
 }
 
 type Tone = "ok" | "ai" | "alert" | "warn" | "sys";
@@ -63,6 +68,9 @@ export function AiTerminal({ latest, onSendToWatch }: Props) {
   const timersRef = useRef<number[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const aliveRef = useRef(true);
+
+  // categoria universal da notificação de teste (Web -> Relógio)
+  const [category, setCategory] = useState<AppCategory>(DEFAULT_CATEGORY);
 
   const pushLine = useCallback((text: string, tone: Tone) => {
     idRef.current += 1;
@@ -214,16 +222,17 @@ export function AiTerminal({ latest, onSendToWatch }: Props) {
   const sendTest = async () => {
     if (phaseRef.current !== "idle") return;
     setPhaseSafe("send");
+    const meta = NOTIFICATION_CATEGORIES[category];
     const text = `Haylou AI · ${hasData ? "análise concluída ✓" : "teste de notificação"}`;
     let ok = true;
     if (onSendToWatch) {
-      ok = await onSendToWatch(text);
+      ok = await onSendToWatch(text, { vibrate: true, category, title: meta.label });
     }
     if (!aliveRef.current) return;
     pushLine(
       ok
-        ? `Notificação enviada ao relógio: vibração + texto "${text}".`
-        : `Relógio não conectado — envio BLE ignorado. Conecte o smartwatch para enviar (tentativa registrada: "${text}").`,
+        ? `Notificação enviada ao relógio (${meta.icon} ${meta.label}): vibração + texto "${text}".`
+        : `Relógio não conectado — envio BLE ignorado. Conecte o smartwatch para enviar (tentativa registrada: ${meta.icon} ${meta.label} — "${text}").`,
       ok ? "ok" : "warn",
     );
     setPhaseSafe("idle");
@@ -322,6 +331,25 @@ export function AiTerminal({ latest, onSendToWatch }: Props) {
           </span>
           {phase === "analyze" ? "Consultando IA…" : "Consultar IA (Groq)"}
         </button>
+
+        <label className="cat-picker" title="categoria universal da notificação">
+          <span className="cat-ico" aria-hidden="true">
+            {NOTIFICATION_CATEGORIES[category].icon}
+          </span>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as AppCategory)}
+            disabled={phase !== "idle"}
+            aria-label="categoria da notificação de teste"
+          >
+            {(Object.keys(NOTIFICATION_CATEGORIES) as AppCategory[]).map((c) => (
+              <option key={c} value={c}>
+                {NOTIFICATION_CATEGORIES[c].icon} {NOTIFICATION_CATEGORIES[c].label}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <button className="btn primary" onClick={sendTest} disabled={phase !== "idle"}>
           <span className="send-ico" aria-hidden="true">
             ⚡
@@ -329,8 +357,8 @@ export function AiTerminal({ latest, onSendToWatch }: Props) {
           {phase === "send" ? "Enviando…" : "Testar notificação no relógio"}
         </button>
         <span className="t-dim" style={{ fontSize: 11 }}>
-          a IA só é consultada quando você pedir (ou em emergência real: BPM ≥ {EMERGENCY_BPM}) —
-          nenhuma chamada automática em loop
+          notificação universal (categoria + vibração) para a tela AMOLED — IA só sob demanda ou em
+          emergência real (BPM ≥ {EMERGENCY_BPM}); sem chamadas automáticas
         </span>
       </div>
     </section>

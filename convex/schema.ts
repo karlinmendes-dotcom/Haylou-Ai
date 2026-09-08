@@ -22,23 +22,35 @@ export default defineSchema({
   }),
   /**
    * Telemetria do smartwatch persistida a cada medição:
-   * BPM vindo do Heart Rate Profile (BLE), SpO2/estresse quando o
-   * firmware enviar, nível de bateria e timestamp do relógio.
+   * BPM vindo do Heart Rate Profile (BLE), SpO2/estresse, sono, passos,
+   * distância, calorias, cadência, modo de esporte, pressão arterial,
+   * bateria e RSSI — sempre que o firmware expuser cada leitura.
    */
   biometrics: defineTable({
     deviceId: v.string(),
     bpm: v.number(),
     spo2: v.optional(v.number()),
     stress: v.optional(v.number()),
+    steps: v.optional(v.number()),
+    distanceMeters: v.optional(v.number()),
+    calories: v.optional(v.number()),
+    cadence: v.optional(v.number()),
+    sleepPhase: v.optional(v.string()),
+    sportMode: v.optional(v.string()),
+    systolic: v.optional(v.number()),
+    diastolic: v.optional(v.number()),
+    rssi: v.optional(v.number()),
     battery: v.optional(v.number()),
     timestamp: v.number(),
   }).index("by_timestamp", ["timestamp"]),
   /**
-   * Alertas e notificações gerados pela IA e enviados para a tela
-   * AMOLED do relógio (texto + padrão de vibração + status do envio).
+   * Alertas e notificações enviados para a tela AMOLED do relógio
+   * (categoria universal, título, texto + padrão de vibração + status).
    */
   ai_notifications: defineTable({
     deviceId: v.optional(v.string()),
+    category: v.optional(v.string()),
+    title: v.optional(v.string()),
     message: v.string(),
     sentAt: v.number(),
     status: v.union(v.literal("sent"), v.literal("failed"), v.literal("pending")),

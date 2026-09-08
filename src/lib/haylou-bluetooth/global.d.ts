@@ -7,10 +7,39 @@
 type BluetoothServiceUUID = string | number;
 type BluetoothCharacteristicUUID = string | number;
 
+interface BluetoothAdvertisementReceivedEvent extends Event {
+  readonly device: BluetoothDevice;
+  readonly rssi: number;
+  readonly txPower: number | null;
+  readonly manufacturerData: Map<number, DataView>;
+  readonly serviceData: Map<string, DataView>;
+}
+
 interface BluetoothDevice extends EventTarget {
   readonly id: string;
   readonly name?: string;
   readonly gatt?: BluetoothRemoteGATTServer;
+  watchAdvertisements(): Promise<void>;
+  addEventListener(
+    type: "advertisementreceived",
+    callback: ((ev: BluetoothAdvertisementReceivedEvent) => void) | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
+  removeEventListener(
+    type: "advertisementreceived",
+    callback: ((ev: BluetoothAdvertisementReceivedEvent) => void) | null,
+    options?: boolean | EventListenerOptions,
+  ): void;
+  addEventListener(
+    type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ): void;
+  removeEventListener(
+    type: string,
+    callback: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions,
+  ): void;
 }
 
 interface BluetoothRemoteGATTServer {

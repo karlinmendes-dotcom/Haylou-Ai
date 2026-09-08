@@ -34,6 +34,7 @@ export function WatchConnect({ status, onConnect, onDisconnect }: Props) {
                 {status.deviceName ?? "Solar Plus RT3 (LS16)"}
                 {status.bpm != null && <> · {status.bpm} bpm</>}
                 {status.battery != null ? ` · ${status.battery}%` : " · bateria n/d"}
+                {status.rssi != null && <> · sinal {status.rssi} dBm</>}
               </span>
             </span>
             <span className="pill green">

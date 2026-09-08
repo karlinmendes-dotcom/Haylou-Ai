@@ -8,6 +8,8 @@ import { v } from "convex/values";
 export const insert = mutation({
   args: {
     deviceId: v.optional(v.string()),
+    category: v.optional(v.string()),
+    title: v.optional(v.string()),
     message: v.string(),
     status: v.union(v.literal("sent"), v.literal("failed"), v.literal("pending")),
     vibrationPattern: v.optional(v.string()),
@@ -16,6 +18,8 @@ export const insert = mutation({
   handler: async (ctx, args) => {
     await ctx.db.insert("ai_notifications", {
       deviceId: args.deviceId,
+      category: args.category,
+      title: args.title,
       message: args.message,
       status: args.status,
       vibrationPattern: args.vibrationPattern,

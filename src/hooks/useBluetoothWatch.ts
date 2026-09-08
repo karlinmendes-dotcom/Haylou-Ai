@@ -4,7 +4,9 @@ import { api } from "../ConvexClientProvider";
 import {
   HaylouRT3Client,
   isWebBluetoothSupported,
+  type AppCategory,
   type RT3Sample,
+  type RT3Telemetry,
 } from "../lib/haylou-bluetooth/HaylouRT3Client";
 import { EMPTY_READING, type VitalsReading } from "./useVitals";
 
@@ -16,7 +18,15 @@ export interface WatchStatus {
   deviceName: string | null;
   battery: number | null;
   bpm: number | null;
+  /** força do sinal BLE (dBm) — null quando indisponível */
+  rssi: number | null;
   error: string | null;
+}
+
+export interface SendNotificationOptions {
+  vibrate?: boolean;
+  category?: AppCategory;
+  title?: string;
 }
 
 export interface WatchController {
@@ -27,8 +37,8 @@ export interface WatchController {
   history: number[];
   connect: () => Promise<void>;
   disconnect: () => void;
-  /** Envia notificação para a tela AMOLED via BLE e registra no Convex. */
-  sendNotification: (text: string, vibrate?: boolean) => Promise<boolean>;
+  /** Envia notificação universal (categoria + título + texto) via BLE e registra no Convex. */
+  sendNotification: (text: string, options?: SendNotificationOptions) => Promise<boolean>;
 }
 
 const INITIAL: WatchStatus = {
@@ -37,6 +47,7 @@ const INITIAL: WatchStatus = {
   deviceName: null,
   battery: null,
   bpm: null,
+  rssi: null,
   error: null,
 };
 
@@ -50,7 +61,8 @@ export const EMERGENCY_BPM = 150;
  * Gerencia o ciclo de vida da conexão Web Bluetooth com o HAYLOU RT3 (LS16)
  * e liga a telemetria ao Convex. NENHUM dado é gerado aqui: a biometria
  * exibida no dashboard e persistida no banco vem somente dos pacotes reais
- * transmitidos pelo relógio via BLE (Heart Rate Service 0x180D).
+ * transmitidos pelo relógio via BLE (Heart Rate 0x180D, Battery 0x180F,
+ * Blood Pressure 0x1810 e demais características notificáveis).
  */
 export function useBluetoothWatch(): WatchController {
   const insertBiometric = useMutation(api.biometrics.insert);
@@ -68,7 +80,9 @@ export function useBluetoothWatch(): WatchController {
   // evitando closures velhas e duplicação de cliente em re-renders.
   const handlersRef = useRef({
     onSample: (_s: RT3Sample) => {},
+    onTelemetry: (_t: RT3Telemetry) => {},
     onBattery: (_level: number) => {},
+    onRssi: (_rssi: number) => {},
     onDisconnected: () => {},
   });
 
@@ -77,11 +91,55 @@ export function useBluetoothWatch(): WatchController {
   if (clientRef.current === null) {
     clientRef.current = new HaylouRT3Client({
       onSample: (s) => handlersRef.current.onSample(s),
+      onTelemetry: (t) => handlersRef.current.onTelemetry(t),
       onBattery: (l) => handlersRef.current.onBattery(l),
+      onRssi: (r) => handlersRef.current.onRssi(r),
       onDisconnected: () => handlersRef.current.onDisconnected(),
       onError: (m) => setStatus((prev) => ({ ...prev, error: m })),
     });
   }
+
+  /** Persiste a leitura atual no Convex respeitando o throttle anti-redundância. */
+  const persist = useCallback(
+    (fields: {
+      bpm: number;
+      spo2?: number;
+      stress?: number;
+      steps?: number;
+      distanceMeters?: number;
+      calories?: number;
+      cadence?: number;
+      sleepPhase?: string;
+      sportMode?: string;
+      systolic?: number;
+      diastolic?: number;
+      rssi?: number;
+      battery?: number;
+      ts: number;
+    }) => {
+      const now = Date.now();
+      if (now - lastPersistRef.current < PERSIST_EVERY_MS) return;
+      lastPersistRef.current = now;
+      void insertBiometric({
+        deviceId: DEVICE_ID,
+        bpm: fields.bpm,
+        spo2: fields.spo2,
+        stress: fields.stress,
+        steps: fields.steps,
+        distanceMeters: fields.distanceMeters,
+        calories: fields.calories,
+        cadence: fields.cadence,
+        sleepPhase: fields.sleepPhase,
+        sportMode: fields.sportMode,
+        systolic: fields.systolic,
+        diastolic: fields.diastolic,
+        rssi: fields.rssi,
+        battery: fields.battery,
+        timestamp: fields.ts,
+      }).catch(() => {});
+    },
+    [insertBiometric],
+  );
 
   handlersRef.current.onSample = (sample: RT3Sample) => {
     setStatus((prev) => ({
@@ -96,23 +154,53 @@ export function useBluetoothWatch(): WatchController {
       bpm: sample.bpm,
       spo2: sample.spo2 ?? null,
       stress: sample.stress ?? null,
-      steps: null, // pedômetro não é lido neste serviço GATT
-      calories: null,
+      steps: sample.steps ?? null,
+      calories: sample.calories ?? null,
       anomaly: sample.bpm >= EMERGENCY_BPM,
       ts: sample.ts,
     });
     setHistory((h) => [...h.slice(-(HISTORY_LEN - 1)), sample.bpm]);
+    persist({ ...sample, bpm: sample.bpm });
+  };
 
-    const now = Date.now();
-    if (now - lastPersistRef.current < PERSIST_EVERY_MS) return;
-    lastPersistRef.current = now;
-    void insertBiometric({
-      deviceId: DEVICE_ID,
-      bpm: sample.bpm,
-      spo2: sample.spo2,
-      battery: sample.battery,
-      timestamp: sample.ts,
-    }).catch(() => {});
+  // telemetria de sensores que não são HR (BP, SpO2/estresse/sono/passos
+  // decodificados pelo parser do firmware) — mescla na leitura e persiste
+  handlersRef.current.onTelemetry = (t: RT3Telemetry) => {
+    setReading((prev) => ({
+      ...prev,
+      spo2: t.spo2 ?? prev.spo2,
+      stress: t.stress ?? prev.stress,
+      steps: t.steps ?? prev.steps,
+      calories: t.calories ?? prev.calories,
+      ts: t.ts,
+    }));
+    const battery = t.battery;
+    if (battery != null) {
+      setStatus((prev) => ({ ...prev, battery }));
+    }
+    const rssi = t.rssi;
+    if (rssi != null) {
+      setStatus((prev) => ({ ...prev, rssi }));
+    }
+    const current = reading;
+    const bpm = current.bpm;
+    if (bpm == null) return; // sem batimento recente não há leitura completa para persistir
+    persist({
+      bpm,
+      spo2: t.spo2,
+      stress: t.stress,
+      steps: t.steps,
+      distanceMeters: t.distanceMeters,
+      calories: t.calories,
+      cadence: t.cadence,
+      sleepPhase: t.sleepPhase,
+      sportMode: t.sportMode,
+      systolic: t.bloodPressure?.systolic,
+      diastolic: t.bloodPressure?.diastolic,
+      rssi: t.rssi,
+      battery: t.battery,
+      ts: t.ts,
+    });
   };
 
   handlersRef.current.onBattery = (level: number) => {
@@ -120,11 +208,17 @@ export function useBluetoothWatch(): WatchController {
     void updateBattery({ battery: level }).catch(() => {});
   };
 
+  handlersRef.current.onRssi = (rssi: number) => {
+    setStatus((prev) => ({ ...prev, rssi }));
+  };
+
   handlersRef.current.onDisconnected = () => {
     setStatus((prev) => ({
       ...prev,
       phase: "idle",
       bpm: null,
+      battery: null,
+      rssi: null,
       error: "Conexão BLE perdida — o relógio desconectou.",
     }));
     // sem dados reais: zera o painel (nenhuma medição é exibida ou gravada)
@@ -156,29 +250,44 @@ export function useBluetoothWatch(): WatchController {
 
   const disconnect = useCallback(() => {
     clientRef.current?.disconnect();
-    setStatus((prev) => ({ ...prev, phase: "idle", bpm: null, battery: null, error: null }));
+    setStatus((prev) => ({
+      ...prev,
+      phase: "idle",
+      bpm: null,
+      battery: null,
+      rssi: null,
+      error: null,
+    }));
     setReading(EMPTY_READING);
     setHistory([]);
   }, []);
 
   const sendNotification = useCallback(
-    async (text: string, vibrate = true): Promise<boolean> => {
+    async (text: string, options?: SendNotificationOptions): Promise<boolean> => {
       const client = clientRef.current;
+      const category: AppCategory = options?.category ?? "ai";
+      const vibrate = options?.vibrate ?? true;
       let ok = false;
       if (client?.isConnected) {
         try {
-          await client.sendNotification(text, vibrate ? [200, 100, 200] : []);
+          await client.sendNotification({
+            category,
+            title: options?.title,
+            text,
+            vibrationMs: vibrate ? undefined : [],
+          });
           ok = true;
         } catch {
           ok = false;
         }
       }
-      const pattern = vibrate ? "200-100-200" : "nenhum";
       void insertNotification({
         deviceId: DEVICE_ID,
+        category,
+        title: options?.title,
         message: text,
         status: ok ? "sent" : "failed",
-        vibrationPattern: pattern,
+        vibrationPattern: vibrate ? "categoria" : "nenhum",
       }).catch(() => {});
       return ok;
     },

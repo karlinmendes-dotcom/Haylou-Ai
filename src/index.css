@@ -601,6 +601,39 @@ body::before {
 .btn.primary:hover { box-shadow: 0 0 22px rgba(0, 240, 255, 0.28); }
 .btn .send-ico { font-size: 13px; line-height: 1; }
 
+/* seletor de categoria universal de notificação */
+.cat-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+.cat-picker:hover { border-color: rgba(0, 240, 255, 0.4); }
+.cat-picker .cat-ico { font-size: 13px; line-height: 1; }
+.cat-picker select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--txt);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  max-width: 150px;
+  text-overflow: ellipsis;
+}
+.cat-picker select option {
+  background: var(--bg1);
+  color: var(--txt);
+}
+.cat-picker select:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ---------- seção banco ---------- */
 .db-grid {
   display: grid;
