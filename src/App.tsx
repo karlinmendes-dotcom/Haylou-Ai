@@ -7,6 +7,7 @@ import { MetricCards } from "./components/MetricCards";
 import { AiTerminal } from "./components/AiTerminal";
 import { VoiceComposer } from "./components/VoiceComposer";
 import { DbPanels } from "./components/DbPanels";
+import { TrainerDashboard } from "./components/TrainerDashboard";
 import { SyncFooter } from "./components/SyncFooter";
 import "./index.css";
 
@@ -47,6 +48,8 @@ export default function App() {
         <VoiceComposer onSendToWatch={watch.sendNotification} />
 
         <MetricCards reading={reading} />
+
+        <TrainerDashboard />
 
         <DbPanels />
 

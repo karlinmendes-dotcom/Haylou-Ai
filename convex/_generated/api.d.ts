@@ -12,6 +12,7 @@ import type * as actions from "../actions.js";
 import type * as ai from "../ai.js";
 import type * as biometrics from "../biometrics.js";
 import type * as devices from "../devices.js";
+import type * as health from "../health.js";
 import type * as http from "../http.js";
 import type * as intentParser from "../intentParser.js";
 import type * as notifications from "../notifications.js";
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   biometrics: typeof biometrics;
   devices: typeof devices;
+  health: typeof health;
   http: typeof http;
   intentParser: typeof intentParser;
   notifications: typeof notifications;

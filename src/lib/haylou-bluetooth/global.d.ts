@@ -94,3 +94,12 @@ interface Navigator {
     requestDevice(options: BluetoothRequestDeviceOptions): Promise<BluetoothDevice>;
   };
 }
+
+/**
+ * Ponte Health Connect (client-side → Convex): a WebView/companion Android
+ * (ou qualquer automação) chama window.__haylouHealthConnectSync(packet)
+ * para persistir métricas reais em health_metrics via health.syncMetrics.
+ */
+interface Window {
+  __haylouHealthConnectSync?: (packet: unknown) => Promise<{ ok: true } | { ok: false; error: string }>;
+}

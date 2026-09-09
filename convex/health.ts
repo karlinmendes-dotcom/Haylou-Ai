@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 /**
@@ -105,8 +106,8 @@ export const getTrainerDashboard = query({
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
     const rows: {
-      user: (typeof users)[number];
-      latestMetrics: Awaited<ReturnType<typeof ctx.db.get>> | null;
+      user: Doc<"users">;
+      latestMetrics: Doc<"health_metrics"> | null;
       openAlerts: number;
     }[] = [];
 
@@ -167,9 +168,19 @@ export const listAlerts = query({
     status: v.optional(v.union(v.literal("PENDING"), v.literal("RESOLVED"))),
   },
   handler: async (ctx, { userId, status }) => {
-    let q = ctx.db.query("alerts");
-    if (userId) q = q.withIndex("by_userId", (qq) => qq.eq("userId", userId));
-    if (status) q = q.filter((qq) => qq.eq(qq.field("status"), status));
+    const q = ctx.db.query("alerts");
+    if (userId && status) {
+      return await q
+        .withIndex("by_userId", (qq) => qq.eq("userId", userId))
+        .filter((qq) => qq.eq(qq.field("status"), status))
+        .collect();
+    }
+    if (userId) {
+      return await q.withIndex("by_userId", (qq) => qq.eq("userId", userId)).collect();
+    }
+    if (status) {
+      return await q.filter((qq) => qq.eq(qq.field("status"), status)).collect();
+    }
     return await q.collect();
   },
 });
