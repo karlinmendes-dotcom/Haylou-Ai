@@ -129,6 +129,23 @@ body::before {
 .red    { --c: var(--red); }
 .amber  { --c: var(--amber); }
 
+/* ---------- banner de status do Convex ---------- */
+.convex-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 11px 16px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--amber);
+  background: rgba(255, 200, 87, 0.07);
+  border: 1px solid rgba(255, 200, 87, 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
 /* ---------- top bar ---------- */
 .topbar {
   position: relative;

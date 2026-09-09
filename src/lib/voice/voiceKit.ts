@@ -93,7 +93,10 @@ function cleanupStream(): void {
 export function createVoiceKit(
   transcribe: (audioB64: string, mimeType: string) => Promise<TranscribeResult>,
 ): VoiceKit {
+  // checagem preventiva: navegador SEM suporte a microfone/gravação
+  // (getUserMedia ou MediaRecorder ausentes) -> supported = false, sem exceção.
   const supported =
+    typeof window !== "undefined" &&
     typeof navigator !== "undefined" &&
     !!navigator.mediaDevices?.getUserMedia &&
     typeof MediaRecorder !== "undefined";
