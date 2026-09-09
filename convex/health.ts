@@ -77,6 +77,26 @@ export const syncMetrics = mutation({
 });
 
 /**
+ * Histórico de métricas de um paciente (para gráficos/detalhe no painel
+ * do treinador), da mais recente para a mais antiga.
+ */
+export const getPatientHistory = query({
+  args: {
+    userId: v.id("users"),
+    /** Máximo de registros retornados (default: 50). */
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { userId, limit }) => {
+    const rows = await ctx.db
+      .query("health_metrics")
+      .withIndex("by_userId_syncedAt", (q) => q.eq("userId", userId))
+      .order("desc")
+      .collect();
+    return limit && limit > 0 ? rows.slice(0, limit) : rows.slice(0, 50);
+  },
+});
+
+/**
  * Painel central do Personal: todos os alunos cadastrados com suas
  * últimas métricas coletadas e a contagem de alertas abertos.
  */
