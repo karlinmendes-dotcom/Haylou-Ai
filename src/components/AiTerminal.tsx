@@ -171,21 +171,35 @@ export function AiTerminal({ latest, onSendToWatch }: Props) {
     }
   }, [convexClient]);
 
-  // aviso de emergência REAL (BPM >= 150 vindo do relógio físico).
-  // NENHUMA chamada automática de IA — apenas um alerta local: a IA
-  // responde exclusivamente por clique em "Consultar IA" ou mensagem
-  // de texto/voz do usuário (regra: sem IA automática).
+  // GATILHO CRÍTICO REAL (regra 2c da spec): BPM >= 150 vindo do relógio
+  // físico dispara UMA análise de IA, limitada a 1 a cada 60 s.
+  // Não roda na inicialização nem por pacote — só em emergência real.
   useEffect(() => {
     const r = latestRef.current;
     if (r.bpm == null || r.bpm < EMERGENCY_BPM) return;
     const t = Date.now();
     if (t - lastEmergencyRef.current < EMERGENCY_COOLDOWN_MS) return;
+    if (phaseRef.current !== "idle") return;
     lastEmergencyRef.current = t;
     pushLine(
-      `Emergência real detectada: BPM ${r.bpm} (≥ ${EMERGENCY_BPM}) — clique em "Consultar IA" para uma análise de acompanhamento.`,
+      `Emergência real detectada: BPM ${r.bpm} (≥ ${EMERGENCY_BPM}) — acionando análise de acompanhamento.`,
       "alert",
     );
-  }, [latest, pushLine]);
+    setPhaseSafe("analyze");
+    later(async () => {
+      const groq = await consultGroq();
+      if (!aliveRef.current) return;
+      if (groq) {
+        pushLine(groq, "ai");
+      } else {
+        pushLine(
+          "IA remota indisponível — monitore o próximo ciclo e procure assistência se o pico persistir.",
+          "warn",
+        );
+      }
+      setPhaseSafe("idle");
+    }, 400);
+  }, [latest, later, pushLine, setPhaseSafe, consultGroq]);
 
   // rolagem automática
   useEffect(() => {
