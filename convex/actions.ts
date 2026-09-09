@@ -132,6 +132,14 @@ export const list = query({
   },
 });
 
+/** Busca uma ação pelo id (usada pelos executores, ex.: whatsapp.dispatch). */
+export const getAction = query({
+  args: { id: v.id("user_actions") },
+  handler: async (ctx, { id }) => {
+    return await ctx.db.get(id);
+  },
+});
+
 /** Ações pendentes (para os executores externos consumirem). */
 export const pending = query({
   args: { limit: v.optional(v.number()) },

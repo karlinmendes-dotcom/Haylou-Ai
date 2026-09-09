@@ -12,8 +12,12 @@ import { parseIntent } from "./intentParser";
  *   POST {CONVEX_URL}/http/actions        -> registra uma ação (intent explícita)
  *   POST {CONVEX_URL}/http/intent         -> converte texto livre em intenção + ação
  *   POST {CONVEX_URL}/http/actions/:id/status -> atualiza o status (executores)
+ *   POST {CONVEX_URL}/http/actions/:id/dispatch -> executa uma ação pendente (ex.: WhatsApp)
  *   GET  {CONVEX_URL}/http/actions        -> lista ações (mais recentes)
  *   GET  {CONVEX_URL}/http/health         -> healthcheck do backend
+ *
+ * Ações SEND_WHATSAPP registradas via POST /actions são executadas
+ * imediatamente pelo executor da Evolution API (convex/whatsapp.ts).
  *
  * As respostas incluem CORS liberado para o frontend e para chamadas de
  * servidores. Para uso público, proteja com um token via
@@ -92,7 +96,35 @@ http.route({
       payload: body.payload,
       targetService: typeof body.targetService === "string" ? body.targetService : undefined,
     });
+    // auto-dispara o executor para intenções de WhatsApp
+    if (action.intent === "SEND_WHATSAPP") {
+      try {
+        const dispatch = await ctx.runAction(api.whatsapp.dispatch, {
+          actionId: action.id as never,
+        });
+        return json({ ok: true, action, dispatch }, 201);
+      } catch (err) {
+        return json(
+          { ok: true, action, dispatch: { success: false, reason: "DISPATCH_ERROR", error: String(err) } },
+          201,
+        );
+      }
+    }
     return json({ ok: true, action }, 201);
+  }),
+});
+
+/** Executa manualmente uma ação pendente (ex.: reenviar um WhatsApp). */
+http.route({
+  path: "/actions/:id/dispatch",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    if (!authorized(req)) return json({ error: "unauthorized" }, 401);
+    const id = req.url.split("/").slice(-2)[0];
+    const result = await ctx.runAction(api.whatsapp.dispatch, {
+      actionId: id as never,
+    });
+    return json({ ok: true, ...result });
   }),
 });
 
