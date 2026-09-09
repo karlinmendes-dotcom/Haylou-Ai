@@ -36,10 +36,6 @@ const now = () =>
 
 const stressLabel = (s: number) => (s < 35 ? "baixo" : s < 65 ? "moderado" : "alto");
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 /** Intervalo mínimo entre consultas automáticas de emergência (economia de cota). */
 const EMERGENCY_COOLDOWN_MS = 60_000;
 
@@ -113,19 +109,20 @@ export function AiTerminal({ latest, onSendToWatch }: Props) {
       });
     }
 
+    // recomendação determinística (baseada na leitura REAL — sem aleatoriedade)
     let recomendacao: string;
     if (r.stress != null && r.stress >= 70) {
-      recomendacao = pick([
-        "pausa curta + respiração 4-7-8 para baixar o estresse",
-        "check de hidratação — estresse elevado costuma acompanhar déficit hídrico",
-      ]);
+      recomendacao =
+        r.bpm % 2 === 0
+          ? "pausa curta + respiração 4-7-8 para baixar o estresse"
+          : "check de hidratação — estresse elevado costuma acompanhar déficit hídrico";
     } else if (r.spo2 != null && r.spo2 < 96) {
       recomendacao = "postura ereta e respiração nasal lenta até a SpO2 normalizar";
     } else {
-      recomendacao = pick([
-        "manter rotina — sinais vitais dentro do esperado",
-        "ótimo momento para uma caminhada leve de 10 min",
-      ]);
+      recomendacao =
+        r.bpm % 2 === 0
+          ? "manter rotina — sinais vitais dentro do esperado"
+          : "ótimo momento para uma caminhada leve de 10 min";
     }
 
     const detalhes = [
