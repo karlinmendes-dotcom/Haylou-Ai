@@ -59,6 +59,44 @@ export default defineSchema({
     vibrationPattern: v.optional(v.string()),
   }).index("by_sentAt", ["sentAt"]),
   /**
+   * Usuários da plataforma multi-tenant (Health Connect / RPM):
+   * pacientes (com relógio/Health Connect) e treinadores (personal).
+   */
+  users: defineTable({
+    name: v.string(),
+    role: v.union(v.literal("trainer"), v.literal("patient")),
+    age: v.number(),
+    /** Ex.: "HAYLOU Solar Plus RT3", "Apple Watch", "" se não tiver. */
+    connectedDevice: v.string(),
+  }),
+  /**
+   * Métricas de saúde consolidadas por usuário, sincronizadas do
+   * Google Health Connect / Apple HealthKit (ou do relógio via BLE).
+   */
+  health_metrics: defineTable({
+    userId: v.id("users"),
+    bpm: v.optional(v.number()),
+    spo2: v.optional(v.number()),
+    stress: v.optional(v.number()),
+    steps: v.optional(v.number()),
+    calories: v.optional(v.number()),
+    sleepHours: v.optional(v.number()),
+    /** Timestamp ISO da sincronização (ordena cronologicamente). */
+    syncedAt: v.string(),
+  }).index("by_userId_syncedAt", ["userId", "syncedAt"]),
+  /**
+   * Alertas clínicos gerados pela regra de monitoramento remoto
+   * (BPM alto, SpO2 baixo, inatividade) para o treinador agir.
+   */
+  alerts: defineTable({
+    userId: v.id("users"),
+    type: v.union(v.literal("HIGH_BPM"), v.literal("LOW_SPO2"), v.literal("INACTIVITY")),
+    message: v.string(),
+    status: v.union(v.literal("PENDING"), v.literal("RESOLVED")),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_status", ["status"]),
+  /**
    * Ações/intenções de automação pedidas pelo usuário (relógio, voz, web
    * ou webhooks externos) — a "Central de Comandos" do ecossistema:
    * WhatsApp, agenda, chamadas, abertura de apps, etc.
